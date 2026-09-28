@@ -1,6 +1,6 @@
 # Tau
 
-Tau is an experiment to see how fast a native Electron terminal multiplexer can be. It uses xterm.js and a Zig daemon (`taud`). It opens into a shell; tabs and splits organize terminals, while daemon-owned PTYs can survive a window or renderer restart.
+Tau is an experiment to see how fast a native Electron terminal multiplexer can be. Each pane is a Tau-owned canvas terminal surface driven by [libghostty-vt](https://github.com/ghostty-org/ghostty) compiled to WebAssembly, backed by a Zig daemon (`taud`). It opens into a shell; tabs and splits organize terminals, while daemon-owned PTYs can survive a window or renderer restart.
 
 Today the desktop app has a sidebar-based mux UI, terminal search, preferences (appearance, terminal, shortcuts, sessions), and session recovery. A structured control CLI and extension runtime are product goals, **not shipped APIs**. Pi, Git, and project workflows are not built into the terminal.
 
@@ -31,7 +31,7 @@ Script names and benchmark budgets live in [package.json](package.json) and [app
 
 ## Find your way around
 
-- [apps/desktop](apps/desktop): Electron shell and preload, Solid UI, terminal tests and benchmarks.
+- [apps/desktop](apps/desktop): Electron shell and preload, Solid UI, the canvas terminal surface over Ghostty's VT WASM, terminal tests and benchmarks.
 - [apps/daemon](apps/daemon): Zig PTY, mux graph, snapshots, event log and SQLite metadata.
 - [packages/shared](packages/shared): shared schemas and protocol definitions.
 - [docs/README.md](docs/README.md): current technical notes and dated performance evidence.
