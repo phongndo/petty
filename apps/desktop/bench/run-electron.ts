@@ -1,34 +1,35 @@
+import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { build } from 'esbuild'
 
 const require = createRequire(import.meta.url)
 const electronPath = require('electron') as string
 const [entry, ...args] = process.argv.slice(2)
 
 if (!entry) {
-  console.error('Usage: bun bench/run-electron.ts <entry.ts> [...args]')
+  console.error('Usage: tsx bench/run-electron.ts <entry.ts> [...args]')
   process.exit(1)
 }
 
-// Compile with Bun, execute with Electron. Bun cannot host Electron's main-process APIs.
+// Compile with esbuild, execute with Electron.
 // Keep the output under the desktop workspace so external npm imports (and renderer
 // require calls) resolve against the same node_modules as the application.
-const cache = resolve(import.meta.dir, '../.bench-cache')
+const cache = resolve(import.meta.dirname, '../.bench-cache')
 await mkdir(cache, { recursive: true })
 const outdir = await mkdtemp(resolve(cache, 'electron-'))
 let exitCode = 1
 try {
-  const build = await Bun.build({
-    entrypoints: [resolve(entry)],
-    outdir,
-    naming: 'entry.mjs',
-    target: 'node',
+  await build({
+    entryPoints: [resolve(entry)],
+    outfile: resolve(outdir, 'entry.mjs'),
+    bundle: true,
+    platform: 'node',
     format: 'esm',
     packages: 'external',
     sourcemap: 'inline',
   })
-  if (!build.success) throw new AggregateError(build.logs, 'Electron benchmark compilation failed')
 
   const env = { ...process.env }
   delete env.ELECTRON_RUN_AS_NODE
@@ -43,18 +44,16 @@ try {
     ...(process.platform === 'linux' && process.env.CI === 'true' ? ['--no-sandbox'] : []),
     ...args,
   ]
-  const child = Bun.spawn([electronPath, ...electronArgs], {
-    stdin: 'inherit',
-    stdout: 'inherit',
-    stderr: 'inherit',
-    env,
-  })
+  const child = spawn(electronPath, electronArgs, { stdio: 'inherit', env })
   const interrupt = () => child.kill('SIGINT')
   const terminate = () => child.kill('SIGTERM')
   process.on('SIGINT', interrupt)
   process.on('SIGTERM', terminate)
   try {
-    exitCode = await child.exited
+    exitCode = await new Promise<number>((resolve, reject) => {
+      child.once('error', reject)
+      child.once('exit', (code) => resolve(code ?? 1))
+    })
   } finally {
     process.off('SIGINT', interrupt)
     process.off('SIGTERM', terminate)

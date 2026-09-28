@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env tsx
 
 /** Build the same pinned Ghostty C ABI for the daemon's host platform. */
 import { execFileSync } from 'node:child_process'
@@ -16,7 +16,7 @@ import {
 import { join, resolve } from 'node:path'
 import { GHOSTTY_REVISION, withGhosttySource } from './ghostty-source'
 
-const DAEMON_DIR = resolve(import.meta.dir, '../apps/daemon')
+const DAEMON_DIR = resolve(import.meta.dirname, '../apps/daemon')
 const OUTPUT_DIR = join(DAEMON_DIR, '.ghostty-vt')
 
 withGhosttySource((source) => {

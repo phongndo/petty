@@ -4,7 +4,7 @@
  * Compares ghostty-web (Ghostty WASM parser) vs @xterm/xterm (JS parser)
  * by feeding identical terminal data to both and measuring parse throughput.
  *
- * Usage: bun bench/benchmark.ts
+ * Usage: tsx bench/benchmark.ts
  */
 
 import * as fs from 'node:fs'

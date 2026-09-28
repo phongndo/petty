@@ -1,16 +1,18 @@
 import { runInNewContext } from 'node:vm'
+import { build } from 'esbuild'
 import { resolve } from 'node:path'
 import type { ElectronAPI } from '../../src/preload'
 
 // Execute the real preload with only Electron's transport boundary replaced.
-const build = await Bun.build({
-  entrypoints: [resolve(import.meta.dir, '../../src/preload/index.ts')],
-  target: 'node',
+const { outputFiles } = await build({
+  entryPoints: [resolve(import.meta.dirname, '../../src/preload/index.ts')],
+  bundle: true,
+  write: false,
+  platform: 'node',
   format: 'cjs',
   external: ['electron'],
 })
-if (!build.success) throw new AggregateError(build.logs, 'Could not compile preload fixture')
-const source = await build.outputs[0].text()
+const source = outputFiles[0]!.text
 
 type Port = {
   onmessage: ((event: { data: unknown }) => void) | null

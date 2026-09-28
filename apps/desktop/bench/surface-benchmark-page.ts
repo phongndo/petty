@@ -1,4 +1,4 @@
-/* Renderer half of `bun run bench:surface`. Bundled per source tree by surface-benchmark.ts.
+/* Renderer half of `pnpm bench:surface`. Bundled per source tree by surface-benchmark.ts.
  *
  * Drives the production TauTerminal canvas surface, GhosttyVt WASM core and sequenced output
  * writer in a sandboxed renderer. Output frames arrive as MessagePort tasks under the same

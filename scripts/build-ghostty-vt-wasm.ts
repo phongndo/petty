@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env tsx
 
 /** Build the upstream C ABI as a browser-loadable WASM module, without ghostty-web's fork. */
 import { execFileSync } from 'node:child_process'
@@ -13,7 +13,7 @@ import {
 import { join, resolve } from 'node:path'
 import { GHOSTTY_REVISION, GHOSTTY_WEB_ARTIFACT_ID, withGhosttySource } from './ghostty-source'
 
-const OUTPUT_DIR = resolve(import.meta.dir, '../apps/desktop/public')
+const OUTPUT_DIR = resolve(import.meta.dirname, '../apps/desktop/public')
 
 // Upstream disables Kitty graphics on freestanding targets because file/shared-memory media
 // and a host PNG decoder are unavailable. A browser needs neither: disable file I/O entirely,

@@ -1,5 +1,5 @@
 /* Browser-level correctness checks for the real Tau canvas/input surface (no PTY).
- * Invoked by `bun run test:surface` after bundling tau-terminal.ts into .bench-cache.
+ * Invoked by `pnpm test:surface` after bundling tau-terminal.ts into .bench-cache.
  */
 import { app, BrowserWindow } from 'electron'
 import { readFileSync } from 'node:fs'

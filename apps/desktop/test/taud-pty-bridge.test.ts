@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
-import { expect, test } from 'bun:test'
+import assert from 'node:assert/strict'
+import test from 'node:test'
 import type { MessagePortMain } from 'electron'
 import { TaudStreamFrameKind } from '@tau/shared/taud-protocol'
 import { TaudPtyBridge } from '../src/main/taud-pty-bridge'
@@ -85,15 +86,15 @@ for (const cancel of ['session-port', 'control-port', 'dispose'] as const) {
     const f = fixture()
     try {
       f.attach()
-      expect(f.pending.length).toBe(1)
+      assert.equal(f.pending.length, 1)
       if (cancel === 'session-port') f.channel.close()
       else if (cancel === 'control-port') f.control.close()
       else f.bridge.dispose()
       const stream = await f.resolve(0)
-      expect(stream.closed).toBe(true)
-      expect(stream.started).toBe(false)
-      expect(f.control.messages).toEqual([])
-      expect(f.bridge.getDiagnostics().messagesDroppedNoPortTotal).toBe(0)
+      assert.equal(stream.closed, true)
+      assert.equal(stream.started, false)
+      assert.deepEqual(f.control.messages, [])
+      assert.equal(f.bridge.getDiagnostics().messagesDroppedNoPortTotal, 0)
     } finally {
       f.bridge.dispose()
     }
@@ -105,14 +106,14 @@ test('closing a port during first-frame wait closes its stream and suppresses st
   try {
     f.attach()
     const stream = await f.resolve(0)
-    expect(stream.started).toBe(true)
+    assert.equal(stream.started, true)
     f.channel.close()
-    expect(stream.closed).toBe(true)
+    assert.equal(stream.closed, true)
     stream.frame()
     stream.emit('error', new Error('old socket closed'))
     await turn()
-    expect(f.control.messages).toEqual([])
-    expect(f.bridge.getDiagnostics()).toMatchObject({
+    assert.deepEqual(f.control.messages, [])
+    assert.partialDeepStrictEqual(f.bridge.getDiagnostics(), {
       activeStreams: 0,
       messagesDroppedNoPortTotal: 0,
     })
@@ -133,18 +134,24 @@ test('late attach completion cannot replace the new renderer stream', async () =
     current.frame(2)
     await turn()
     const obsolete = await f.resolve(0)
-    expect(obsolete.closed).toBe(true)
-    expect(current.closed).toBe(false)
+    assert.equal(obsolete.closed, true)
+    assert.equal(current.closed, false)
     channel.send({ type: 'input', data: Uint8Array.of(9) })
-    expect(current.input.map((bytes) => [...bytes])).toEqual([[9]])
+    assert.deepEqual(
+      current.input.map((bytes) => [...bytes]),
+      [[9]],
+    )
     current.frame(3)
-    expect(channel.messages).toHaveLength(2)
-    expect(f.control.messages.filter((message: any) => message.type === 'ready')).toHaveLength(1)
-    expect(f.control.messages).toContainEqual({
-      type: 'process-title',
-      sessionId: 's',
-      title: expect.any(String),
-    })
+    assert.equal(channel.messages.length, 2)
+    assert.equal(f.control.messages.filter((message: any) => message.type === 'ready').length, 1)
+    assert.ok(
+      f.control.messages.some(
+        (message: any) =>
+          message.type === 'process-title' &&
+          message.sessionId === 's' &&
+          typeof message.title === 'string',
+      ),
+    )
   } finally {
     f.bridge.dispose()
   }
@@ -156,9 +163,9 @@ test('replacing the control port revokes old channels and ignores queued old con
     f.attach()
     const control = new Port()
     f.bridge.connectPort(control.main())
-    expect(f.channel.closed).toBe(true)
+    assert.equal(f.channel.closed, true)
     const obsolete = await f.resolve(0)
-    expect(obsolete.closed).toBe(true)
+    assert.equal(obsolete.closed, true)
     const channel = new Port()
     f.bridge.connectSessionPort('s', channel.main())
     f.attach(control)
@@ -167,10 +174,10 @@ test('replacing the control port revokes old channels and ignores queued old con
     await turn()
     f.control.send({ type: 'detach', sessionId: 's' })
     f.channel.send({ type: 'resync', seq: 0 })
-    expect(current.closed).toBe(false)
-    expect(channel.closed).toBe(false)
-    expect(f.pending.length).toBe(2)
-    expect(control.messages.filter((message: any) => message.type === 'ready')).toHaveLength(1)
+    assert.equal(current.closed, false)
+    assert.equal(channel.closed, false)
+    assert.equal(f.pending.length, 2)
+    assert.equal(control.messages.filter((message: any) => message.type === 'ready').length, 1)
   } finally {
     f.bridge.dispose()
   }
@@ -189,8 +196,8 @@ test('a late failure from an obsolete attach cannot clear the replacement render
     await turn()
     f.pending[0]!.reject(new Error('old attach failed'))
     await turn()
-    expect(f.control.messages.filter((message: any) => message.type === 'ready')).toHaveLength(1)
-    expect(current.closed).toBe(false)
+    assert.equal(f.control.messages.filter((message: any) => message.type === 'ready').length, 1)
+    assert.equal(current.closed, false)
   } finally {
     f.bridge.dispose()
   }
@@ -205,9 +212,9 @@ test('a newer attach on the same channel also supersedes an older pending RPC', 
     current.frame()
     await turn()
     const obsolete = await f.resolve(0)
-    expect(obsolete.closed).toBe(true)
-    expect(current.closed).toBe(false)
-    expect(f.control.messages.filter((message: any) => message.type === 'ready')).toHaveLength(1)
+    assert.equal(obsolete.closed, true)
+    assert.equal(current.closed, false)
+    assert.equal(f.control.messages.filter((message: any) => message.type === 'ready').length, 1)
   } finally {
     f.bridge.dispose()
   }
@@ -219,7 +226,7 @@ test('unexpected current attach failures still reach the renderer', async () => 
     f.attach()
     f.pending[0]!.reject(new Error('current attach failed'))
     await turn()
-    expect(f.control.messages).toEqual([
+    assert.deepEqual(f.control.messages, [
       { type: 'error', sessionId: 's', error: 'current attach failed' },
     ])
   } finally {
@@ -237,8 +244,8 @@ test('output posts exact-sized bytes: pooled views are copied, owned exact buffe
     const pooled = Buffer.alloc(64, 0x7a).subarray(8, 21)
     pooled.write('pooled output')
     const owned = Buffer.from(new Uint8Array(8192).fill(66))
-    expect(pooled.buffer.byteLength).toBeGreaterThan(pooled.byteLength)
-    expect(owned.byteOffset === 0 && owned.buffer.byteLength === owned.byteLength).toBe(true)
+    assert.ok(pooled.buffer.byteLength > pooled.byteLength)
+    assert.equal(owned.byteOffset === 0 && owned.buffer.byteLength === owned.byteLength, true)
     for (const [seq, payload] of [pooled, owned].entries()) {
       stream.emit('frame', {
         sessionId: 's',
@@ -248,14 +255,17 @@ test('output posts exact-sized bytes: pooled views are copied, owned exact buffe
       })
     }
     const posted = f.channel.messages as Array<{ type: string; seq: number; data: ArrayBuffer }>
-    expect(posted.map((message) => [message.type, message.seq])).toEqual([
-      ['output', 1],
-      ['output', 2],
-    ])
-    expect(posted[0]!.data).not.toBe(pooled.buffer)
-    expect(Buffer.from(posted[0]!.data).toString()).toBe('pooled output')
-    expect(posted[1]!.data).toBe(owned.buffer)
-    expect(posted[1]!.data.byteLength).toBe(8192)
+    assert.deepEqual(
+      posted.map((message) => [message.type, message.seq]),
+      [
+        ['output', 1],
+        ['output', 2],
+      ],
+    )
+    assert.notEqual(posted[0]!.data, pooled.buffer)
+    assert.equal(Buffer.from(posted[0]!.data).toString(), 'pooled output')
+    assert.equal(posted[1]!.data, owned.buffer)
+    assert.equal(posted[1]!.data.byteLength, 8192)
   } finally {
     f.bridge.dispose()
   }

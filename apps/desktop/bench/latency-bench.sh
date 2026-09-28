@@ -15,12 +15,12 @@ echo ""
 
 echo -e "${BOLD}─── Tau (taud Zig daemon) ───${NC}"
 echo -ne "  Measuring... "
-bun "$SCRIPT_DIR/latency-taud.ts" "$RUNS" 2>/dev/null
+tsx "$SCRIPT_DIR/latency-taud.ts" "$RUNS" 2>/dev/null
 
 echo ""
 echo -e "${BOLD}─── VT Parser Comparison (WASM vs JS) ───${NC}"
 echo -ne "  Measuring... "
-bun "$SCRIPT_DIR/benchmark.ts" 2>/dev/null
+tsx "$SCRIPT_DIR/benchmark.ts" 2>/dev/null
 echo ""
 echo -e "${GREEN}${BOLD}Done.${NC}"
 echo ""

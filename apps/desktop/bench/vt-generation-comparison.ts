@@ -1,6 +1,6 @@
 /**
  * Reproducible, headless VT ingestion comparison. This does NOT benchmark painting or taud.
- * Run: nix develop -c bun apps/desktop/bench/vt-generation-comparison.ts
+ * Run: nix develop -c tsx apps/desktop/bench/vt-generation-comparison.ts
  * Override the legacy WASM with TAU_GHOSTTY_WEB_WASM=/path/to/ghostty-vt.wasm.
  * The default is the cached ghostty-web@0.4.0-next.14.g6a1a50d npm artifact.
  */
@@ -9,7 +9,7 @@ import { resolve } from 'node:path'
 import xtermPackage from '@xterm/xterm'
 import { GhosttyVt } from '../src/renderer/ghostty-vt'
 
-const root = process.env.TAU_BENCH_DESKTOP ?? resolve(import.meta.dir, '..')
+const root = process.env.TAU_BENCH_DESKTOP ?? resolve(import.meta.dirname, '..')
 const oldWasm = readFileSync(
   process.env.TAU_GHOSTTY_WEB_WASM ??
     resolve(root, '.bench-cache/ghostty-web-0.4.0-next.14.g6a1a50d/package/ghostty-vt.wasm'),
@@ -125,7 +125,7 @@ const fixtures = [
 ]
 
 console.log(
-  `Headless VT ingestion only | ${typeof Bun === 'undefined' ? `Node ${process.version}` : `Bun ${Bun.version}`} | ${process.platform}/${process.arch}`,
+  `Headless VT ingestion only | Node ${process.version} | ${process.platform}/${process.arch}`,
 )
 console.log(
   `WASM sizes: ghostty-web ${oldWasm.length} B, Tau ${newWasm.length} B | ${runs} measured runs + 1 warmup`,
@@ -165,5 +165,5 @@ for (const { name, data, chunk } of fixtures) {
     )
   }
 }
-// xterm's browser-oriented scheduler can keep a headless Bun process alive after disposal.
+// xterm's browser-oriented scheduler can keep a headless process alive after disposal.
 process.exit(0)

@@ -42,22 +42,32 @@
         ]);
         linuxElectronLibraryPath = pkgs.lib.makeLibraryPath linuxElectronRuntimeLibs;
         linuxElectronMesa = pkgs.lib.optionalString pkgs.stdenv.isLinux "${pkgs.mesa}";
-        # Keep package.json, CI and the dev shell on the same Bun release without
-        # updating unrelated nixpkgs packages. Update these hashes when bumping Bun.
-        bunVersion = pkgs.lib.removePrefix "bun@" (builtins.fromJSON (builtins.readFile ./package.json)).packageManager;
-        bunTargets = {
-          aarch64-darwin = { target = "darwin-aarch64"; hash = "sha256-kJh6OhbX21VtiGrD1VHnttPt8KHPQ6yu1iLoZ2vh0S8="; };
-          x86_64-darwin = { target = "darwin-x64-baseline"; hash = "sha256-utW71s8U0JgNEV9ZVMn/kE32GdXplNLaH/zNPzFjALA="; };
-          aarch64-linux = { target = "linux-aarch64"; hash = "sha256-VDKLvC2cjgyfiSxUTWbFeoO4QTnjSQnl7oF1jxrI/ac="; };
-          x86_64-linux = { target = "linux-x64"; hash = "sha256-NjaPrvdSeHXV/6UuU81IAhdB8qg+tiCKjdZAaNQiqRM="; };
+        # Use pnpm's native release binary at the packageManager version. nixpkgs' pnpm is a
+        # Node launcher that adds ~200 ms to every command. Update hashes when bumping pnpm.
+        pnpmVersion = pkgs.lib.removePrefix "pnpm@" (builtins.fromJSON (builtins.readFile ./package.json)).packageManager;
+        pnpmTargets = {
+          aarch64-darwin = { target = "darwin-arm64"; hash = "sha256-EDDzjhT6LmyH/mqwMTo787eUqWFQT0Q5utLKIRDTWD4="; };
+          x86_64-darwin = { target = "darwin-x64"; hash = "sha256-uu4DOSn9dr3wGT6jWq1u+nrCkxuW8ngDKNJExwF0MGo="; };
+          aarch64-linux = { target = "linux-arm64"; hash = "sha256-lzrys+uVCUFs+ImnM2cFBiyTZAfV/aBymIFOdTL13qE="; };
+          x86_64-linux = { target = "linux-x64"; hash = "sha256-P0xm9mjQ6EIZZ5mC0JWzDaaDJeH6yShOf13BWEvT0T4="; };
         };
-        bun = pkgs.bun.overrideAttrs (_: {
-          version = bunVersion;
+        pnpm = pkgs.stdenv.mkDerivation {
+          pname = "pnpm";
+          version = pnpmVersion;
           src = pkgs.fetchurl {
-            url = "https://github.com/oven-sh/bun/releases/download/bun-v${bunVersion}/bun-${bunTargets.${system}.target}.zip";
-            inherit (bunTargets.${system}) hash;
+            url = "https://github.com/pnpm/pnpm/releases/download/v${pnpmVersion}/pnpm-${pnpmTargets.${system}.target}.tar.gz";
+            inherit (pnpmTargets.${system}) hash;
           };
-        });
+          sourceRoot = ".";
+          dontStrip = true; # The executable embeds its JavaScript payload.
+          nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.autoPatchelfHook ];
+          buildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.stdenv.cc.cc.lib ];
+          installPhase = ''
+            mkdir -p $out/lib/pnpm $out/bin
+            cp -r pnpm dist $out/lib/pnpm/
+            ln -s $out/lib/pnpm/pnpm $out/bin/pnpm
+          '';
+        };
       in
       {
         # ── Dev shell (nix develop) ──
@@ -66,9 +76,9 @@
 
           # Build-time dependencies
           nativeBuildInputs = (with pkgs; [
-            nodejs_24 # LTS compatibility for third-party Node shebangs, not Tau's script runtime
+            nodejs_24 # TypeScript scripts, tests and benchmarks (via tsx)
             nixd # Nix language server
-            bun # Package manager, TypeScript runtime, test runner and benchmark bundler
+            pnpm # Native pnpm pinned above (the let binding takes precedence over pkgs.pnpm)
             unzip # Electron's installer extracts its downloaded runtime with unzip
             zig_0_16 # taud daemon + pinned Ghostty native/WASM builds
             zls_0_16 # Zig language server matching Zig 0.16.x
@@ -127,22 +137,21 @@
 
             echo "🖥  Tau Terminal dev shell"
             echo "   node:  $(node --version)"
-            echo "   bun:   $(bun --version)"
+            echo "   pnpm:  $(pnpm --version)"
             echo "   zig:   $(zig version)"
             echo "   zls:   $(zls --version)"
             echo ""
-            echo "   bun install && bun run dev"
-            echo "   bun run check        # TS + Zig lint/format/type/test checks"
-            echo "   bun run zig:lsp      # verify Zig language server availability"
-            echo "   TypeScript LSP: ./node_modules/.bin/tsc --lsp --stdio (after bun install)"
+            echo "   pnpm install && pnpm dev"
+            echo "   pnpm check           # TS + Zig lint/format/type/test checks"
+            echo "   pnpm zig:lsp         # verify Zig language server availability"
+            echo "   TypeScript LSP: ./node_modules/.bin/tsc --lsp --stdio (after pnpm install)"
             echo ""
           '';
         };
 
-        checks.bun-runtime = pkgs.runCommand "tau-bun-runtime" { } ''
+        checks.pnpm-runtime = pkgs.runCommand "tau-pnpm-runtime" { } ''
           export HOME="$TMPDIR"
-          test "$(${bun}/bin/bun --version)" = '${bunVersion}'
-          ${bun}/bin/bun -e 'const version: string = Bun.version; if (version !== "${bunVersion}") process.exit(1)'
+          test "$(${pnpm}/bin/pnpm --version)" = '${pnpmVersion}'
           touch $out
         '';
 

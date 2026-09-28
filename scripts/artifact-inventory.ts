@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env tsx
 import { existsSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 

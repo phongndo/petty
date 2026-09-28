@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env tsx
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -93,7 +93,10 @@ function ensureGhosttyNative(): string {
     !existsSync(revisionFile) ||
     readFileSync(revisionFile, 'utf8').trim() !== GHOSTTY_REVISION
   ) {
-    run('bun', ['scripts/build-ghostty-vt-native.ts'], { cwd: repoRoot })
+    // Reuse this process's tsx loader flags for the sibling TypeScript script.
+    run(process.execPath, [...process.execArgv, 'scripts/build-ghostty-vt-native.ts'], {
+      cwd: repoRoot,
+    })
   }
   if (!existsSync(archive)) fail('Ghostty native archive is missing after build')
   return archive

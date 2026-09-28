@@ -2,7 +2,7 @@
  * xterm.js — Input Latency Benchmark (JS parser)
  *
  * Measures PTY → xterm.js parser round-trip latency.
- * Usage: bun bench/latency-xterm.ts
+ * Usage: tsx bench/latency-xterm.ts
  */
 
 import xterm from '@xterm/xterm'
