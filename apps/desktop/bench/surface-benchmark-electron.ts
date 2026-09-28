@@ -1,4 +1,4 @@
-/* Electron main half of `bun run bench:surface`: one scenario per process for isolation.
+/* Electron main half of `pnpm bench:surface`: one scenario per process for isolation.
  * Serves the bundled page and packaged Ghostty WASM, injects real Chromium input events, and
  * exposes CDP GC/heap/profiler and per-process metrics to the page. */
 import { app, BrowserWindow } from 'electron'

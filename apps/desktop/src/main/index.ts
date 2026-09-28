@@ -37,9 +37,9 @@ const {
   shell,
 } = electronApi
 import { disposeMainRuntime } from './runtime'
-import { defaultSettings, validateSettings } from '@tau/shared/preferences'
+import { defaultSettings, resolveSettings, validateSettings } from '@tau/shared/preferences'
 import { conflictingShortcut, findShortcut } from './shortcuts'
-import { readSettingsFromBun, writeSettingsToBun, stopSettingsService } from './settings-sidecar'
+import { readSettings, writeSettings } from './settings-store'
 import { TaudPtyBridge } from './taud-pty-bridge'
 import { TaudClient } from './taud-client'
 import { observeSmokeOutput } from './smoke-output'
@@ -428,14 +428,14 @@ ipcMain.on('settings:capture', (event, active: unknown) => {
 
 ipcMain.handle('settings:read', async (event) => {
   if (event.sender !== mainWindow?.webContents) return null
-  currentSettings = await readSettingsFromBun()
+  currentSettings = resolveSettings(await readSettings())
   return currentSettings
 })
 
 ipcMain.handle('settings:write', async (event, data: unknown) => {
   if (event.sender !== mainWindow?.webContents) return
   const settings = decodeSettingsData(data)
-  await writeSettingsToBun(settings)
+  await writeSettings(settings)
   currentSettings = settings
   await taudBridge?.syncPersistenceSettings(settings)
 })
@@ -1837,7 +1837,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-  stopSettingsService()
   void disposeSessionBackends()
   void disposeMainRuntime()
 })

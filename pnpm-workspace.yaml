@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Run package scripts through pnpm's cross-platform shell so inline environment
+# assignments and `&&` chains behave the same on Windows.
+shellEmulator: true
+
+# scripts/electron-install.ts (root postinstall) installs and repairs Electron itself.
+allowBuilds:
+  electron: false
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  - effect@4.0.0-rc.118

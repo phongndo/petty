@@ -9,7 +9,7 @@ import { TaudClient } from '../src/main/taud-client'
 import { readProcessCwd } from '../src/main/process-title'
 import { decodeTaudExitPayload } from '../src/main/taud-stream'
 
-const binary = resolve(import.meta.dir, '../../daemon/zig-out/bin/taud')
+const binary = resolve(import.meta.dirname, '../../daemon/zig-out/bin/taud')
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms))
 
 async function until(condition: () => boolean | Promise<boolean>, label: string): Promise<void> {

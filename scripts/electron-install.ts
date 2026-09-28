@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env tsx
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
@@ -6,8 +6,8 @@ import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 
-// Match desktop dev/bench resolution even if Bun installs a workspace-local Electron.
-const require = createRequire(resolve(import.meta.dir, '../apps/desktop/package.json'))
+// Match desktop dev/bench resolution even if the package manager installs a workspace-local Electron.
+const require = createRequire(resolve(import.meta.dirname, '../apps/desktop/package.json'))
 
 const electronPackageJsonPath = require.resolve('electron/package.json')
 const electronDir = dirname(electronPackageJsonPath)
@@ -20,7 +20,7 @@ const rootElectronPackage = JSON.parse(readFileSync(rootElectronPackageJsonPath,
 }
 if (rootElectronPackage.version !== electronPackage.version) {
   throw new Error(
-    `[electron-install] Electron version mismatch: desktop ${electronPackage.version} at ${electronDir}, root ${rootElectronPackage.version} at ${dirname(rootElectronPackageJsonPath)}. Remove stale workspace-local Electron and rerun bun install.`,
+    `[electron-install] Electron version mismatch: desktop ${electronPackage.version} at ${electronDir}, root ${rootElectronPackage.version} at ${dirname(rootElectronPackageJsonPath)}. Remove stale workspace-local Electron and rerun pnpm install.`,
   )
 }
 

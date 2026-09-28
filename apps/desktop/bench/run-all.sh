@@ -25,17 +25,17 @@ bash "$SCRIPT_DIR/taud-vs-node-pty.sh" || echo "  (taud benchmark skipped)"
 # 2. Latency benchmark (via taud)
 echo ""
 echo -e "${CYAN}▶ Bench 2/7: Input Latency (taud)${NC}"
-bun "$SCRIPT_DIR/latency-taud.ts" || echo "  (latency benchmark skipped)"
+tsx "$SCRIPT_DIR/latency-taud.ts" || echo "  (latency benchmark skipped)"
 
 # 3. VT Parser benchmark (Node.js, headless)
 echo ""
 echo -e "${CYAN}▶ Bench 3/7: VT Parser Throughput${NC}"
-bun "$SCRIPT_DIR/benchmark.ts" || echo "  (parser benchmark skipped)"
+tsx "$SCRIPT_DIR/benchmark.ts" || echo "  (parser benchmark skipped)"
 
 # 4. xterm.js renderer path
 echo ""
 echo -e "${CYAN}▶ Bench 4/7: xterm.js DOM vs WebGL Renderer${NC}"
-bun "$SCRIPT_DIR/run-electron.ts" "$SCRIPT_DIR/xterm-webgl-benchmark.ts" || echo "  (renderer benchmark skipped)"
+tsx "$SCRIPT_DIR/run-electron.ts" "$SCRIPT_DIR/xterm-webgl-benchmark.ts" || echo "  (renderer benchmark skipped)"
 
 # 5. Cross-terminal throughput
 echo ""
@@ -50,7 +50,7 @@ bash "$SCRIPT_DIR/startup-bench.sh" || echo "  (startup benchmark skipped)"
 # 7. Electron IPC transport
 echo ""
 echo -e "${CYAN}▶ Bench 7/7: Electron IPC Transport${NC}"
-bun "$SCRIPT_DIR/run-electron.ts" "$SCRIPT_DIR/ipc-benchmark.ts" || echo "  (IPC benchmark skipped)"
+tsx "$SCRIPT_DIR/run-electron.ts" "$SCRIPT_DIR/ipc-benchmark.ts" || echo "  (IPC benchmark skipped)"
 
 echo ""
 echo -e "${GREEN}${BOLD}All benchmarks complete.${NC}"

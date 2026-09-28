@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env tsx
 // Uses Node-compatible APIs so the same harness can measure the pre-Bun revision.
 import {
   cpSync,
@@ -26,7 +26,7 @@ const { values } = parseArgs({
 const manager = values.manager
 if ((manager !== 'pnpm' && manager !== 'bun') || !values.output) {
   throw new Error(
-    'Usage: bun scripts/bench-tooling.ts --manager <pnpm|bun> --output <file.json> [--cwd <repo>] [--runs 5] [--warmups 1]',
+    'Usage: tsx scripts/bench-tooling.ts --manager <pnpm|bun> --output <file.json> [--cwd <repo>] [--runs 5] [--warmups 1]',
   )
 }
 const runs = Number(values.runs)
@@ -40,7 +40,7 @@ const packageManager = (
 ).packageManager
 if (!packageManager?.startsWith(`${manager}@`)) {
   throw new Error(
-    `Requested ${manager}, but ${root}/package.json declares ${packageManager ?? 'no packageManager'}. Measure the matching revision, not Bun scripts launched through pnpm.`,
+    `Requested ${manager}, but ${root}/package.json declares ${packageManager ?? 'no packageManager'}. Measure the matching revision, not one manager's scripts launched through another.`,
   )
 }
 const output = resolve(values.output)

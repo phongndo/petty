@@ -15,8 +15,8 @@
  *   5. Socket read + JSON parse at client (t4)
  *
  * Usage:
- *   bun run build:taud
- *   bun bench/taud-pty-spawn-profiler.ts
+ *   pnpm build:taud
+ *   tsx bench/taud-pty-spawn-profiler.ts
  */
 
 import { homedir } from 'node:os'

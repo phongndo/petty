@@ -13,12 +13,12 @@
     "./taud-protocol": "./src/taud-protocol.ts"
   },
   "scripts": {
-    "tsc": "bun x --no-install --bun tsc --noEmit -p tsconfig.json",
+    "tsc": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint . --deny-warnings --report-unused-disable-directives",
     "lint:fix": "oxlint . --fix"
   },
   "dependencies": {
-    "effect": "4.0.0-rc.117"
+    "effect": "4.0.0-rc.118"
   },
   "devDependencies": {
     "oxlint": "^1.85.0",

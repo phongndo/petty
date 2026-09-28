@@ -9,11 +9,13 @@
  * Sources run in alternating order each round, one Electron process per scenario. Needs a display
  * (Xvfb on headless Linux). Xvfb/software-canvas results are not GPU or presentation measurements.
  */
+import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { build } from 'esbuild'
 
-const desktop = resolve(import.meta.dir, '..')
+const desktop = resolve(import.meta.dirname, '..')
 const require = createRequire(import.meta.url)
 const electronPath = require('electron') as string
 const cache = resolve(desktop, '.bench-cache/surface')
@@ -46,11 +48,12 @@ const wasm = resolve(desktop, 'public/ghostty-vt.wasm')
 
 async function bundlePage(label: string, root: string): Promise<string> {
   const rendererDir = resolve(root, 'src/renderer')
-  const build = await Bun.build({
-    entrypoints: [resolve(import.meta.dir, 'surface-benchmark-page.ts')],
-    outdir: cache,
-    naming: `page-${label}.js`,
-    target: 'browser',
+  const outfile = resolve(cache, `page-${label}.js`)
+  await build({
+    entryPoints: [resolve(import.meta.dirname, 'surface-benchmark-page.ts')],
+    outfile,
+    bundle: true,
+    platform: 'browser',
     format: 'iife',
     plugins: [
       {
@@ -64,19 +67,17 @@ async function bundlePage(label: string, root: string): Promise<string> {
       },
     ],
   })
-  if (!build.success) throw new AggregateError(build.logs, `bundle ${label} failed`)
-  return resolve(cache, `page-${label}.js`)
+  return outfile
 }
 
-const electronMain = await Bun.build({
-  entrypoints: [resolve(import.meta.dir, 'surface-benchmark-electron.ts')],
-  outdir: cache,
-  naming: 'electron-main.mjs',
-  target: 'node',
+await build({
+  entryPoints: [resolve(import.meta.dirname, 'surface-benchmark-electron.ts')],
+  outfile: resolve(cache, 'electron-main.mjs'),
+  bundle: true,
+  platform: 'node',
   format: 'esm',
   packages: 'external',
 })
-if (!electronMain.success) throw new AggregateError(electronMain.logs, 'electron main build failed')
 const bundles = new Map<string, string>()
 for (const source of sources) bundles.set(source.label, await bundlePage(source.label, source.root))
 
@@ -85,9 +86,9 @@ async function runScenario(label: string, name: string): Promise<Record<string, 
   rmSync(out, { force: true })
   const env = { ...process.env }
   delete env.ELECTRON_RUN_AS_NODE
-  const child = Bun.spawn(
+  const child = spawn(
+    electronPath,
     [
-      electronPath,
       resolve(cache, 'electron-main.mjs'),
       `--user-data-dir=${resolve(cache, `profile-${label}`)}`,
       `--bundle=${bundles.get(label)}`,
@@ -98,9 +99,14 @@ async function runScenario(label: string, name: string): Promise<Record<string, 
       `--cycles=${process.env.TAU_SURFACE_BENCH_CYCLES ?? '30'}`,
       ...(process.platform === 'linux' && process.env.CI === 'true' ? ['--no-sandbox'] : []),
     ],
-    { stdout: 'inherit', stderr: 'pipe', env },
+    { stdio: ['ignore', 'inherit', 'pipe'], env },
   )
-  const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()])
+  let stderr = ''
+  child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk))
+  const code = await new Promise<number | null>((resolve, reject) => {
+    child.once('error', reject)
+    child.once('close', resolve)
+  })
   if (code !== 0) throw new Error(`${label}/${name} exited ${code}\n${stderr.slice(-2000)}`)
   return JSON.parse(readFileSync(out, 'utf8')) as Record<string, unknown>
 }
