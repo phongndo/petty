@@ -243,7 +243,8 @@ test('output posts exact-sized bytes: pooled views are copied, owned exact buffe
     // unrelated bytes, so the bridge must copy them. Exact, private buffers post as they are.
     const pooled = Buffer.alloc(64, 0x7a).subarray(8, 21)
     pooled.write('pooled output')
-    const owned = Buffer.from(new Uint8Array(8192).fill(66))
+    // Buffer.from(typedArray) may also land in the pool (Node >= 24.21); build it as taud-stream does.
+    const owned = Buffer.allocUnsafeSlow(8192).fill(66)
     assert.ok(pooled.buffer.byteLength > pooled.byteLength)
     assert.equal(owned.byteOffset === 0 && owned.buffer.byteLength === owned.byteLength, true)
     for (const [seq, payload] of [pooled, owned].entries()) {
