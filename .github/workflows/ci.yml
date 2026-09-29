@@ -44,9 +44,9 @@ jobs:
       - name: Daemon runtime check (isolated HOME)
         run: |
           set -euo pipefail
-          TAUD_CI_HOME="$(mktemp -d)"
-          trap 'rm -rf "$TAUD_CI_HOME"' EXIT
-          HOME="$TAUD_CI_HOME" pnpm --filter @tau/daemon check
+          PETTYD_CI_HOME="$(mktemp -d)"
+          trap 'rm -rf "$PETTYD_CI_HOME"' EXIT
+          HOME="$PETTYD_CI_HOME" pnpm --filter @petty/daemon check
       - name: Daemon leak check
         run: pnpm zig:leak-check
   # ── Frontend quality; macOS memory-safety runs the daemon tests ──
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      TAUD_SKIP_NATIVE: '1'
+      PETTYD_SKIP_NATIVE: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
         with:
@@ -112,12 +112,12 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: tau-dist-ubuntu
+            artifact: petty-dist-ubuntu
             skip_native: '1'
           - os: macos-15
-            artifact: tau-dist-macos
+            artifact: petty-dist-macos
           - os: windows-latest
-            artifact: tau-dist-windows
+            artifact: petty-dist-windows
             shell: bash
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -154,13 +154,13 @@ jobs:
       - name: Build
         run: pnpm build
         env:
-          TAUD_SKIP_NATIVE: ${{ matrix.skip_native }}
+          PETTYD_SKIP_NATIVE: ${{ matrix.skip_native }}
       - name: esbuild-compiled Electron benchmark smoke
         if: runner.os == 'macOS'
         timeout-minutes: 2
-        run: pnpm --filter @tau/desktop bench:addons
+        run: pnpm --filter @petty/desktop bench:addons
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 (Node 24)
-        if: matrix.artifact != 'tau-dist-windows'
+        if: matrix.artifact != 'petty-dist-windows'
         with:
           name: ${{ matrix.artifact }}
           path: apps/desktop/out/

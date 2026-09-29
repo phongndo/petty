@@ -1,7 +1,7 @@
 .{
-    .name = .taud,
+    .name = .pettyd,
     .version = "0.1.0",
-    .fingerprint = 0x949b613244f5f41c, // Name hash for .taud; preserve the package identity's random suffix.
+    .fingerprint = 0xe8b5c4e6b7f06461, // Name hash for .pettyd; preserve the package identity's random suffix.
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .sqlite = .{

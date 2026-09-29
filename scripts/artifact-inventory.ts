@@ -16,7 +16,7 @@ function walk(dir: string, out: Entry[] = [], root = dir): Entry[] {
 }
 
 function categorize(path: string): string {
-  if (path.includes('taud') || path.endsWith('/taud')) return 'taud'
+  if (path.includes('pettyd') || path.endsWith('/pettyd')) return 'pettyd'
   if (path.includes('node_modules/electron') || path.includes('Electron')) return 'electron'
   if (path.includes('.wasm')) return 'wasm'
   if (path.includes('font') || path.endsWith('.ttf') || path.endsWith('.otf')) return 'fonts'
@@ -28,7 +28,7 @@ function categorize(path: string): string {
     path.endsWith('.html') ||
     path.endsWith('.mjs')
   )
-    return 'tau-js-css'
+    return 'petty-js-css'
   return 'other'
 }
 

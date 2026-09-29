@@ -1,11 +1,11 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Search results are interactive ARIA options, not native select options. */
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { defaultSettings, defaultShortcutKey, shortcuts } from '@tau/shared/preferences'
-import type { SettingsData } from '@tau/shared/session'
+import { defaultSettings, defaultShortcutKey, shortcuts } from '@petty/shared/preferences'
+import type { SettingsData } from '@petty/shared/session'
 import type {
-  TaudLifecycleDiagnostics,
-  TaudLifecycleRecoveryAction,
-} from '@tau/shared/taud-protocol'
+  PettydLifecycleDiagnostics,
+  PettydLifecycleRecoveryAction,
+} from '@petty/shared/pettyd-protocol'
 import {
   searchSettings,
   settingItems,
@@ -19,10 +19,10 @@ export function SettingsPage(props: {
   settings: SettingsData
   onChange(settings: SettingsData): Promise<void>
   onBack(): void
-  diagnostics: TaudLifecycleDiagnostics | null
+  diagnostics: PettydLifecycleDiagnostics | null
   recovering: boolean
   recoverError: string
-  onRecover(action: TaudLifecycleRecoveryAction): Promise<void>
+  onRecover(action: PettydLifecycleRecoveryAction): Promise<void>
   searchFocusToken: number
 }) {
   const [section, setSection] = createSignal<SettingsSection>('Appearance')

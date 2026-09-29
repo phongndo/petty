@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ─── Tau — Latency Benchmark ───
+# ─── Petty — Latency Benchmark ───
 # Measures keystroke-to-echo latency: PTY → parser → output.
 # Usage: bash bench/latency-bench.sh
 set -euo pipefail
@@ -13,9 +13,9 @@ echo -e "${BOLD}║   (PTY → parser → output, ${RUNS} samples)       ║${NC
 echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
-echo -e "${BOLD}─── Tau (taud Zig daemon) ───${NC}"
+echo -e "${BOLD}─── Petty (pettyd Zig daemon) ───${NC}"
 echo -ne "  Measuring... "
-tsx "$SCRIPT_DIR/latency-taud.ts" "$RUNS" 2>/dev/null
+tsx "$SCRIPT_DIR/latency-pettyd.ts" "$RUNS" 2>/dev/null
 
 echo ""
 echo -e "${BOLD}─── VT Parser Comparison (WASM vs JS) ───${NC}"
@@ -24,5 +24,5 @@ tsx "$SCRIPT_DIR/benchmark.ts" 2>/dev/null
 echo ""
 echo -e "${GREEN}${BOLD}Done.${NC}"
 echo ""
-echo -e "Note: taud benchmark measures full pipeline (write → socket → daemon →"
+echo -e "Note: pettyd benchmark measures full pipeline (write → socket → daemon →"
 echo -e "PTY → echo → daemon → binary stream). WASM benchmark from bench/benchmark.ts."

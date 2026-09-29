@@ -2,21 +2,21 @@ import { Schema } from 'effect'
 
 const NonEmptyString = Schema.Trim.check(Schema.isNonEmpty())
 
-export const TAUD_STREAM_MAGIC = 0x54415346 // TASF
-export const TAUD_STREAM_VERSION = 1
-export const TAUD_STREAM_SESSION_ID_SIZE = 64
-export const TAUD_STREAM_HEADER_SIZE = 88
-export const TAUD_STREAM_MAX_PAYLOAD_BYTES = 64 * 1024 * 1024
+export const PETTYD_STREAM_MAGIC = 0x50545346 // PTSF
+export const PETTYD_STREAM_VERSION = 1
+export const PETTYD_STREAM_SESSION_ID_SIZE = 64
+export const PETTYD_STREAM_HEADER_SIZE = 88
+export const PETTYD_STREAM_MAX_PAYLOAD_BYTES = 64 * 1024 * 1024
 
-export const TAUD_CONTROL_PROTOCOL_VERSION = 2
-export const TAUD_CONTROL_CAPABILITIES = [
+export const PETTYD_CONTROL_PROTOCOL_VERSION = 2
+export const PETTYD_CONTROL_CAPABILITIES = [
   'sessions-v1',
   'stream-frames-v1',
   'persistence-v1',
   'mux-graph-v2',
 ] as const
 
-export const TaudStreamFrameKind = {
+export const PettydStreamFrameKind = {
   Output: 1,
   Input: 2,
   Resize: 3,
@@ -24,10 +24,11 @@ export const TaudStreamFrameKind = {
   Exit: 5,
 } as const
 
-export type TaudStreamFrameKind = (typeof TaudStreamFrameKind)[keyof typeof TaudStreamFrameKind]
-export type TaudControlCapability = (typeof TAUD_CONTROL_CAPABILITIES)[number]
+export type PettydStreamFrameKind =
+  (typeof PettydStreamFrameKind)[keyof typeof PettydStreamFrameKind]
+export type PettydControlCapability = (typeof PETTYD_CONTROL_CAPABILITIES)[number]
 
-export const TaudLifecycleStateSchema = Schema.Union([
+export const PettydLifecycleStateSchema = Schema.Union([
   Schema.Literal('absent'),
   Schema.Literal('starting'),
   Schema.Literal('owned-live'),
@@ -39,7 +40,7 @@ export const TaudLifecycleStateSchema = Schema.Union([
   Schema.Literal('disposed'),
 ])
 
-export const TaudDaemonOwnershipSchema = Schema.Union([
+export const PettydDaemonOwnershipSchema = Schema.Union([
   Schema.Literal('none'),
   Schema.Literal('external'),
   Schema.Literal('owned-attached'),
@@ -47,7 +48,7 @@ export const TaudDaemonOwnershipSchema = Schema.Union([
   Schema.Literal('released-detached'),
 ])
 
-export const TaudLifecycleRecoveryActionSchema = Schema.Union([
+export const PettydLifecycleRecoveryActionSchema = Schema.Union([
   Schema.Literal('none'),
   Schema.Literal('start-daemon'),
   Schema.Literal('wait-for-start'),
@@ -58,15 +59,15 @@ export const TaudLifecycleRecoveryActionSchema = Schema.Union([
   Schema.Literal('replace-incompatible-daemon'),
 ])
 
-export const TaudLifecycleRecoveryInputSchema = TaudLifecycleRecoveryActionSchema
+export const PettydLifecycleRecoveryInputSchema = PettydLifecycleRecoveryActionSchema
 
-export const TaudLifecycleEventSchema = Schema.Struct({
-  state: TaudLifecycleStateSchema,
+export const PettydLifecycleEventSchema = Schema.Struct({
+  state: PettydLifecycleStateSchema,
   at: Schema.Number,
   reason: Schema.optional(Schema.String),
 })
 
-export const TaudControlRequestDiagnosticsSchema = Schema.Struct({
+export const PettydControlRequestDiagnosticsSchema = Schema.Struct({
   id: Schema.String,
   traceId: Schema.String,
   responseTraceId: Schema.optional(Schema.String),
@@ -77,7 +78,7 @@ export const TaudControlRequestDiagnosticsSchema = Schema.Struct({
   error: Schema.optional(Schema.String),
 })
 
-export const TaudStreamDiagnosticsSchema = Schema.Struct({
+export const PettydStreamDiagnosticsSchema = Schema.Struct({
   activeSubscribers: Schema.Number,
   pendingOutputSessions: Schema.Number,
   pendingOutputFrames: Schema.Number,
@@ -97,7 +98,7 @@ export const TaudStreamDiagnosticsSchema = Schema.Struct({
   oldestPendingAgeMs: Schema.optional(Schema.Number),
 })
 
-export const TaudDaemonControlDiagnosticsSchema = Schema.Struct({
+export const PettydDaemonControlDiagnosticsSchema = Schema.Struct({
   requestCount: Schema.Number,
   failureCount: Schema.Number,
   lastRequestType: Schema.optional(Schema.String),
@@ -107,7 +108,7 @@ export const TaudDaemonControlDiagnosticsSchema = Schema.Struct({
   lastRecordedAtMs: Schema.optional(Schema.Number),
 })
 
-export const TaudLifecycleTimingDiagnosticsSchema = Schema.Struct({
+export const PettydLifecycleTimingDiagnosticsSchema = Schema.Struct({
   clientCreatedAt: Schema.Number,
   lastTransitionAt: Schema.Number,
   lastPingStartedAt: Schema.optional(Schema.Number),
@@ -118,17 +119,17 @@ export const TaudLifecycleTimingDiagnosticsSchema = Schema.Struct({
   lastStartDurationMs: Schema.optional(Schema.Number),
 })
 
-export const TaudLifecycleDiagnosticsSchema = Schema.Struct({
+export const PettydLifecycleDiagnosticsSchema = Schema.Struct({
   clientTraceId: Schema.String,
-  state: TaudLifecycleStateSchema,
+  state: PettydLifecycleStateSchema,
   socketPath: Schema.String,
   detachDaemon: Schema.Boolean,
   healthChecksEnabled: Schema.Boolean,
   healthChecksStarted: Schema.Boolean,
   startInFlight: Schema.Boolean,
   restartScheduled: Schema.Boolean,
-  daemonOwnership: TaudDaemonOwnershipSchema,
-  recoveryAction: TaudLifecycleRecoveryActionSchema,
+  daemonOwnership: PettydDaemonOwnershipSchema,
+  recoveryAction: PettydLifecycleRecoveryActionSchema,
   spawnedPid: Schema.optional(Schema.Number),
   releasedDetachedPid: Schema.optional(Schema.Number),
   daemonVersion: Schema.optional(Schema.String),
@@ -138,19 +139,19 @@ export const TaudLifecycleDiagnosticsSchema = Schema.Struct({
   lastError: Schema.optional(Schema.String),
   controlRequestCount: Schema.Number,
   controlRequestFailureCount: Schema.Number,
-  lastControlRequest: Schema.optional(TaudControlRequestDiagnosticsSchema),
-  streamDiagnostics: Schema.optional(TaudStreamDiagnosticsSchema),
-  daemonControlDiagnostics: Schema.optional(TaudDaemonControlDiagnosticsSchema),
-  timing: TaudLifecycleTimingDiagnosticsSchema,
-  transitions: Schema.Array(TaudLifecycleEventSchema),
+  lastControlRequest: Schema.optional(PettydControlRequestDiagnosticsSchema),
+  streamDiagnostics: Schema.optional(PettydStreamDiagnosticsSchema),
+  daemonControlDiagnostics: Schema.optional(PettydDaemonControlDiagnosticsSchema),
+  timing: PettydLifecycleTimingDiagnosticsSchema,
+  transitions: Schema.Array(PettydLifecycleEventSchema),
 })
 
-export const TaudStreamFrameKindSchema = Schema.Union([
-  Schema.Literal(TaudStreamFrameKind.Output),
-  Schema.Literal(TaudStreamFrameKind.Input),
-  Schema.Literal(TaudStreamFrameKind.Resize),
-  Schema.Literal(TaudStreamFrameKind.Snapshot),
-  Schema.Literal(TaudStreamFrameKind.Exit),
+export const PettydStreamFrameKindSchema = Schema.Union([
+  Schema.Literal(PettydStreamFrameKind.Output),
+  Schema.Literal(PettydStreamFrameKind.Input),
+  Schema.Literal(PettydStreamFrameKind.Resize),
+  Schema.Literal(PettydStreamFrameKind.Snapshot),
+  Schema.Literal(PettydStreamFrameKind.Exit),
 ])
 
 export const AttachSessionModeSchema = Schema.Union([
@@ -217,21 +218,23 @@ export type AttachSessionResult = Schema.Schema.Type<typeof AttachSessionResultS
 export type OutputFrame = Schema.Schema.Type<typeof OutputFrameSchema>
 export type CurrentScreenSnapshotFrame = Schema.Schema.Type<typeof CurrentScreenSnapshotFrameSchema>
 export type ExitInfo = Schema.Schema.Type<typeof ExitInfoSchema>
-export type TaudLifecycleState = Schema.Schema.Type<typeof TaudLifecycleStateSchema>
-export type TaudDaemonOwnership = Schema.Schema.Type<typeof TaudDaemonOwnershipSchema>
-export type TaudLifecycleRecoveryAction = Schema.Schema.Type<
-  typeof TaudLifecycleRecoveryActionSchema
+export type PettydLifecycleState = Schema.Schema.Type<typeof PettydLifecycleStateSchema>
+export type PettydDaemonOwnership = Schema.Schema.Type<typeof PettydDaemonOwnershipSchema>
+export type PettydLifecycleRecoveryAction = Schema.Schema.Type<
+  typeof PettydLifecycleRecoveryActionSchema
 >
-export type TaudLifecycleRecoveryInput = Schema.Schema.Type<typeof TaudLifecycleRecoveryInputSchema>
-export type TaudLifecycleEvent = Schema.Schema.Type<typeof TaudLifecycleEventSchema>
-export type TaudControlRequestDiagnostics = Schema.Schema.Type<
-  typeof TaudControlRequestDiagnosticsSchema
+export type PettydLifecycleRecoveryInput = Schema.Schema.Type<
+  typeof PettydLifecycleRecoveryInputSchema
 >
-export type TaudStreamDiagnostics = Schema.Schema.Type<typeof TaudStreamDiagnosticsSchema>
-export type TaudDaemonControlDiagnostics = Schema.Schema.Type<
-  typeof TaudDaemonControlDiagnosticsSchema
+export type PettydLifecycleEvent = Schema.Schema.Type<typeof PettydLifecycleEventSchema>
+export type PettydControlRequestDiagnostics = Schema.Schema.Type<
+  typeof PettydControlRequestDiagnosticsSchema
 >
-export type TaudLifecycleTimingDiagnostics = Schema.Schema.Type<
-  typeof TaudLifecycleTimingDiagnosticsSchema
+export type PettydStreamDiagnostics = Schema.Schema.Type<typeof PettydStreamDiagnosticsSchema>
+export type PettydDaemonControlDiagnostics = Schema.Schema.Type<
+  typeof PettydDaemonControlDiagnosticsSchema
 >
-export type TaudLifecycleDiagnostics = Schema.Schema.Type<typeof TaudLifecycleDiagnosticsSchema>
+export type PettydLifecycleTimingDiagnostics = Schema.Schema.Type<
+  typeof PettydLifecycleTimingDiagnosticsSchema
+>
+export type PettydLifecycleDiagnostics = Schema.Schema.Type<typeof PettydLifecycleDiagnosticsSchema>

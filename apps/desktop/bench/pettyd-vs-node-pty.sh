@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# ─── Tau — taud (Zig Daemon) vs node-pty Era Performance Benchmark ───
+# ─── Petty — pettyd (Zig Daemon) vs node-pty Era Performance Benchmark ───
 #
-# Measures actual taud performance across:
+# Measures actual pettyd performance across:
 #   1. Process startup time (cold → ready)
 #   2. PTY create/attach round-trip latency
-#   3. Bulk output throughput (cat 10MB through taud VT pipeline)
+#   3. Bulk output throughput (cat 10MB through pettyd VT pipeline)
 #   4. Memory and CPU profiling
 #   5. Long-idle resource usage
 #
@@ -12,15 +12,15 @@
 # and bench/latency-bench.sh results.
 #
 # Usage:
-#   bash bench/taud-vs-node-pty.sh
+#   bash bench/pettyd-vs-node-pty.sh
 #
-# Output: stdout summary + bench/taud-bench-results.txt
+# Output: stdout summary + bench/pettyd-bench-results.txt
 # ───────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-RESULTS_FILE="$PROJECT_ROOT/bench/taud-bench-results.txt"
+RESULTS_FILE="$PROJECT_ROOT/bench/pettyd-bench-results.txt"
 
 BOLD='\033[1m'
 GREEN='\033[0;32m'
@@ -29,44 +29,44 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-SOCKET_PATH="${HOME}/.tau/run/taud.sock"
-TAUD_BIN="${PROJECT_ROOT}/../daemon/zig-out/bin/taud"
+SOCKET_PATH="${HOME}/.petty/run/pettyd.sock"
+PETTYD_BIN="${PROJECT_ROOT}/../daemon/zig-out/bin/pettyd"
 
 echo -e "${BOLD}╔══════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║   Tau Performance: taud (Zig) vs node-pty Era                 ║${NC}"
+echo -e "${BOLD}║   Petty Performance: pettyd (Zig) vs node-pty Era                 ║${NC}"
 echo -e "${BOLD}║   $(date)               ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
 # ─── Helpers ───
 
-cleanup_taud() {
-  pkill -x taud 2>/dev/null || true
+cleanup_pettyd() {
+  pkill -x pettyd 2>/dev/null || true
   sleep 0.5
   rm -f "$SOCKET_PATH"
 }
 
-ensure_taud_running() {
-  if ! pgrep -x taud > /dev/null 2>&1; then
-    echo -e "  ${YELLOW}taud not running, starting...${NC}"
+ensure_pettyd_running() {
+  if ! pgrep -x pettyd > /dev/null 2>&1; then
+    echo -e "  ${YELLOW}pettyd not running, starting...${NC}"
     rm -f "$SOCKET_PATH"
-    "$TAUD_BIN" &>/dev/null &
+    "$PETTYD_BIN" &>/dev/null &
     # Wait for socket
     for i in $(seq 1 50); do
       if [ -S "$SOCKET_PATH" ]; then
-        echo -e "  ${GREEN}taud started (PID: $(pgrep -x taud))${NC}"
+        echo -e "  ${GREEN}pettyd started (PID: $(pgrep -x pettyd))${NC}"
         return 0
       fi
       sleep 0.1
     done
-    echo -e "  ${RED}taud failed to start${NC}"
+    echo -e "  ${RED}pettyd failed to start${NC}"
     return 1
   fi
-  echo -e "  ${GREEN}taud already running (PID: $(pgrep -x taud))${NC}"
+  echo -e "  ${GREEN}pettyd already running (PID: $(pgrep -x pettyd))${NC}"
 }
 
 json_request() {
-  # Send a JSON request to taud's Unix socket and read the response
+  # Send a JSON request to pettyd's Unix socket and read the response
   local payload="$1"
   local timeout="${2:-3}"
   echo "$payload" | nc -U -w "$timeout" "$SOCKET_PATH" 2>/dev/null || echo '{"ok":false,"error_message":"nc failed"}'
@@ -80,7 +80,7 @@ now_ms() {
 
 bench_startup() {
   echo ""
-  echo -e "${BOLD}─── Test 1: taud Cold Startup Time ───${NC}"
+  echo -e "${BOLD}─── Test 1: pettyd Cold Startup Time ───${NC}"
   echo ""
   echo -e "  ${YELLOW}Note: This shell benchmark uses stat() polling which adds ~1ms overhead.${NC}"
   echo -e "  ${YELLOW}For true sub-millisecond precision, a C/Node.js harness with 0.1ms polling${NC}"
@@ -93,11 +93,11 @@ bench_startup() {
   for run in $(seq 1 $runs); do
     echo -ne "  Run $run/$runs... "
 
-    cleanup_taud
+    cleanup_pettyd
 
     local start=$(python3 -c 'import time; print(int(time.time() * 1000000))')
 
-    "$TAUD_BIN" &>/dev/null &
+    "$PETTYD_BIN" &>/dev/null &
     local pid=$!
 
     # Wait for Unix socket — fine polling (5ms) to minimize measurement artifact
@@ -141,9 +141,9 @@ bench_startup() {
     echo "    avg: ${avg} ms   min: ${min} ms   max: ${max} ms"
     echo "    samples: ${#latencies[@]}"
     echo ""
-    echo "taud_startup|avg|${avg}|ms" >> "$RESULTS_FILE"
-    echo "taud_startup|min|${min}|ms" >> "$RESULTS_FILE"
-    echo "taud_startup|max|${max}|ms" >> "$RESULTS_FILE"
+    echo "pettyd_startup|avg|${avg}|ms" >> "$RESULTS_FILE"
+    echo "pettyd_startup|min|${min}|ms" >> "$RESULTS_FILE"
+    echo "pettyd_startup|max|${max}|ms" >> "$RESULTS_FILE"
 
     # Add a note about the artifact
     echo "" >> "$RESULTS_FILE"
@@ -152,9 +152,9 @@ bench_startup() {
   fi
 
   echo -e "  ${YELLOW}Note: node-pty startup is ~5-10ms (module load) but blocks the${NC}"
-  echo -e "  ${YELLOW}Electron event loop. taud starts asynchronously in a separate${NC}"
+  echo -e "  ${YELLOW}Electron event loop. pettyd starts asynchronously in a separate${NC}"
   echo -e "  ${YELLOW}process, so the perceived startup cost to the UI is 0ms.${NC}"
-  echo -e "  ${YELLOW}Actual taud startup is ~5-9ms, only ~1ms slower than node-pty.${NC}"
+  echo -e "  ${YELLOW}Actual pettyd startup is ~5-9ms, only ~1ms slower than node-pty.${NC}"
 }
 
 # ─── Test 2: PTY Create/Attach Round-Trip ───
@@ -164,7 +164,7 @@ bench_pty_latency() {
   echo -e "${BOLD}─── Test 2: PTY Create + Attach Round-Trip ───${NC}"
   echo ""
 
-  ensure_taud_running
+  ensure_pettyd_running
 
   local samples=${1:-20}
   local latencies=()
@@ -215,13 +215,13 @@ bench_pty_latency() {
     echo "    avg: ${avg} ms   p50: ${p50} ms   p95: ${p95} ms   p99: ${p99} ms"
     echo "    min: ${min} ms   max: ${max} ms   samples: ${count}"
     echo ""
-    echo "taud_pty_spawn|avg|${avg}|ms" >> "$RESULTS_FILE"
-    echo "taud_pty_spawn|p50|${p50}|ms" >> "$RESULTS_FILE"
-    echo "taud_pty_spawn|p95|${p95}|ms" >> "$RESULTS_FILE"
-    echo "taud_pty_spawn|p99|${p99}|ms" >> "$RESULTS_FILE"
+    echo "pettyd_pty_spawn|avg|${avg}|ms" >> "$RESULTS_FILE"
+    echo "pettyd_pty_spawn|p50|${p50}|ms" >> "$RESULTS_FILE"
+    echo "pettyd_pty_spawn|p95|${p95}|ms" >> "$RESULTS_FILE"
+    echo "pettyd_pty_spawn|p99|${p99}|ms" >> "$RESULTS_FILE"
 
     echo -e "  ${YELLOW}node-pty comparison: PTY spawn is ~3-5ms (native C++ addon).${NC}"
-    echo -e "  ${YELLOW}taud adds a Unix socket round-trip (~0.5ms) but avoids V8 GC pauses.${NC}"
+    echo -e "  ${YELLOW}pettyd adds a Unix socket round-trip (~0.5ms) but avoids V8 GC pauses.${NC}"
   fi
 }
 
@@ -229,13 +229,13 @@ bench_pty_latency() {
 
 bench_bulk_throughput() {
   echo ""
-  echo -e "${BOLD}─── Test 3: Bulk Output Throughput (taud VT Pipeline) ───${NC}"
+  echo -e "${BOLD}─── Test 3: Bulk Output Throughput (pettyd VT Pipeline) ───${NC}"
   echo ""
 
-  ensure_taud_running
+  ensure_pettyd_running
 
   local size_kb=${1:-512}
-  local testfile="/tmp/taud-bench-bulk-$(date +%s).txt"
+  local testfile="/tmp/pettyd-bench-bulk-$(date +%s).txt"
 
   echo -ne "  Generating ${size_kb}KB test data... "
 
@@ -268,7 +268,7 @@ with open('${testfile}', 'w') as f:
 
   local sid="bench-bulk-$(date +%s)"
   echo ""
-  echo -e "  Benchmarking taud bulk VT throughput via attach stream..."
+  echo -e "  Benchmarking pettyd bulk VT throughput via attach stream..."
 
   # Use Python for the full create+attach+stream+drain measurement
   # This handles binary protocol frames properly
@@ -322,7 +322,7 @@ if not attach_resp.get('ok'):
 
 print('  Attached, reading output frames...')
 
-# Parse TASF binary frames and time the whole thing
+# Parse PTSF binary frames and time the whole thing
 start = time.time()
 total_bytes = 0
 frame_count = 0
@@ -338,7 +338,7 @@ while True:
     # Parse frames
     while len(buf) >= 88:  # header size
         magic = struct.unpack('>I', buf[0:4])[0]
-        if magic != 0x54415346:  # TASF
+        if magic != 0x50545346:  # PTSF
             buf = buf[1:]
             continue
         kind = struct.unpack('>H', buf[6:8])[0]
@@ -376,14 +376,14 @@ print(f'  Effective throughput: {throughput:.1f} MB/s')
 print(f'  Child exit code: {os.exit_code}')
 
 # Output for parsing
-print(f'TAUD_BULK|duration|{elapsed:.0f}|ms')
-print(f'TAUD_BULK|bytes|{total_bytes}|bytes')
-print(f'TAUD_BULK|throughput|{throughput:.1f}|MB/s')
-print(f'TAUD_BULK|frames|{frame_count}|count')
+print(f'PETTYD_BULK|duration|{elapsed:.0f}|ms')
+print(f'PETTYD_BULK|bytes|{total_bytes}|bytes')
+print(f'PETTYD_BULK|throughput|{throughput:.1f}|MB/s')
+print(f'PETTYD_BULK|frames|{frame_count}|count')
 " 2>&1)"
   printf '%s\n' "$bulk_output"
   printf '%s\n' "$bulk_output" \
-    | awk -F'|' '/^TAUD_BULK\|/ { printf "taud_bulk_throughput|%s|%s|%s\n", $2, $3, $4 }' \
+    | awk -F'|' '/^PETTYD_BULK\|/ { printf "pettyd_bulk_throughput|%s|%s|%s\n", $2, $3, $4 }' \
     >> "$RESULTS_FILE"
 
   # Cleanup
@@ -393,13 +393,13 @@ print(f'TAUD_BULK|frames|{frame_count}|count')
   echo ""
   echo -e "  ${YELLOW}Cross-reference: bench/benchmark.ts measured ghostty-web WASM parser${NC}"
   echo -e "  ${YELLOW}at ~76 MB/s (plain) and ~25 MB/s (ANSI-heavy). The native libghostty-vt${NC}"
-  echo -e "  ${YELLOW}in taud is estimated at ~55-75 MB/s based on Ghostty upstream numbers.${NC}"
+  echo -e "  ${YELLOW}in pettyd is estimated at ~55-75 MB/s based on Ghostty upstream numbers.${NC}"
   echo -e "  ${YELLOW}node-pty era used xterm.js JS parser (~15 MB/s), about 3-5× slower.${NC}"
 
   echo ""
   echo -e "  ${YELLOW}Cross-reference: bench/benchmark.ts measured ghostty-web WASM parser${NC}"
   echo -e "  ${YELLOW}at ~76 MB/s (plain) and ~25 MB/s (ANSI-heavy). The native libghostty-vt${NC}"
-  echo -e "  ${YELLOW}in taud is estimated at ~55-75 MB/s based on Ghostty upstream numbers.${NC}"
+  echo -e "  ${YELLOW}in pettyd is estimated at ~55-75 MB/s based on Ghostty upstream numbers.${NC}"
   echo -e "  ${YELLOW}node-pty era used xterm.js JS parser (~15 MB/s), about 3-5× slower.${NC}"
 }
 
@@ -410,11 +410,11 @@ bench_resources() {
   echo -e "${BOLD}─── Test 4: Memory & CPU Profiling ───${NC}"
   echo ""
 
-  ensure_taud_running
+  ensure_pettyd_running
 
-  local pid=$(pgrep -x taud 2>/dev/null || true)
+  local pid=$(pgrep -x pettyd 2>/dev/null || true)
   if [ -z "$pid" ]; then
-    echo -e "  ${RED}taud not running, cannot profile${NC}"
+    echo -e "  ${RED}pettyd not running, cannot profile${NC}"
     return
   fi
 
@@ -436,8 +436,8 @@ bench_resources() {
   local avg_idle_cpu=$(python3 -c "print($idle_cpu / $idle_samples)")
   echo -e " ${GREEN}done${NC}"
   echo "    Idle: ${avg_idle_rss} MB RSS, ${avg_idle_cpu}% CPU"
-  echo "taud_idle|rss|${avg_idle_rss}|MB" >> "$RESULTS_FILE"
-  echo "taud_idle|cpu|${avg_idle_cpu}|%" >> "$RESULTS_FILE"
+  echo "pettyd_idle|rss|${avg_idle_rss}|MB" >> "$RESULTS_FILE"
+  echo "pettyd_idle|cpu|${avg_idle_cpu}|%" >> "$RESULTS_FILE"
 
   # Under load: create sessions that produce output
   echo -ne "  Sampling under load..."
@@ -472,13 +472,13 @@ bench_resources() {
 
   echo -e " ${GREEN}done${NC}"
   echo "    Under load: ${avg_load_rss} MB RSS, ${avg_load_cpu}% CPU"
-  echo "taud_load|rss|${avg_load_rss}|MB" >> "$RESULTS_FILE"
-  echo "taud_load|cpu|${avg_load_cpu}|%" >> "$RESULTS_FILE"
+  echo "pettyd_load|rss|${avg_load_rss}|MB" >> "$RESULTS_FILE"
+  echo "pettyd_load|cpu|${avg_load_cpu}|%" >> "$RESULTS_FILE"
 
   echo ""
   echo -e "  ${YELLOW}node-pty comparison: node-pty ran inside Electron's renderer process${NC}"
-  echo -e "  ${YELLOW}which has ~150-250 MB RSS baseline. taud is isolated at ~4-8 MB RSS.${NC}"
-  echo -e "  ${YELLOW}CPU-wise, taud's Zig event loop avoids V8 GC pauses entirely.${NC}"
+  echo -e "  ${YELLOW}which has ~150-250 MB RSS baseline. pettyd is isolated at ~4-8 MB RSS.${NC}"
+  echo -e "  ${YELLOW}CPU-wise, pettyd's Zig event loop avoids V8 GC pauses entirely.${NC}"
 }
 
 # ─── Test 5: Cross-reference with existing WASM benchmarks ───
@@ -505,16 +505,16 @@ cross_reference() {
 
 # Clean and initialize results
 rm -f "$RESULTS_FILE"
-echo "taud_benchmark|metric|value|unit" > "$RESULTS_FILE"
+echo "pettyd_benchmark|metric|value|unit" > "$RESULTS_FILE"
 
-# Start fresh taud
-cleanup_taud
+# Start fresh pettyd
+cleanup_pettyd
 
 # Run benchmarks
 bench_startup 3
 
-# Start taud for remaining tests
-ensure_taud_running
+# Start pettyd for remaining tests
+ensure_pettyd_running
 
 bench_pty_latency 30
 bench_bulk_throughput 10
@@ -535,33 +535,33 @@ if [ -f "$RESULTS_FILE" ]; then
   echo -e "${BOLD}  ──────                           ─────           ──────────────────${NC}"
 
   while IFS='|' read -r test metric value unit; do
-    [ "$test" = "taud_benchmark" ] && continue
+    [ "$test" = "pettyd_benchmark" ] && continue
     case "${test}_${metric}" in
-      taud_startup_avg)
+      pettyd_startup_avg)
         printf "  %-30s %8s %-5s     %s\n" "Cold startup" "${value} ${unit}" "" "node-pty: ~5ms (but blocks Event loop)"
         ;;
-      taud_pty_spawn_avg)
+      pettyd_pty_spawn_avg)
         printf "  %-30s %8s %-5s     %s\n" "PTY spawn (avg)" "${value} ${unit}" "" "node-pty: ~4ms (C++ addon)"
         ;;
-      taud_pty_spawn_p95)
+      pettyd_pty_spawn_p95)
         printf "  %-30s %8s %-5s     %s\n" "PTY spawn (p95)" "${value} ${unit}" "" ""
         ;;
-      taud_pty_spawn_p99)
+      pettyd_pty_spawn_p99)
         printf "  %-30s %8s %-5s     %s\n" "PTY spawn (p99)" "${value} ${unit}" "" "node-pty: ~15ms (GC pause)"
         ;;
-      taud_bulk_throughput_throughput)
+      pettyd_bulk_throughput_throughput)
         printf "  %-30s %8s %-5s     %s\n" "Bulk throughput" "${value} ${unit}" "" "node-pty era: ~15 MB/s (×3-5)"
         ;;
-      taud_idle_rss)
+      pettyd_idle_rss)
         printf "  %-30s %8s %-5s     %s\n" "Idle RSS" "${value} ${unit}" "" "node-pty: N/A (in Electron ~200MB)"
         ;;
-      taud_load_rss)
+      pettyd_load_rss)
         printf "  %-30s %8s %-5s     %s\n" "Loaded RSS" "${value} ${unit}" "" ""
         ;;
-      taud_idle_cpu)
+      pettyd_idle_cpu)
         printf "  %-30s %8s %-5s     %s\n" "Idle CPU" "${value}${unit}" "" "node-pty: ~0% (but V8 GC adds jitter)"
         ;;
-      taud_load_cpu)
+      pettyd_load_cpu)
         printf "  %-30s %8s %-5s     %s\n" "Loaded CPU" "${value}${unit}" "" ""
         ;;
     esac
@@ -570,11 +570,11 @@ fi
 
 echo ""
 echo -e "${BOLD}Key takeaways:${NC}"
-echo "  1. taud runs as a SEPARATE Zig process (~4-8 MB RSS) vs node-pty inside Electron (~200 MB)"
+echo "  1. pettyd runs as a SEPARATE Zig process (~4-8 MB RSS) vs node-pty inside Electron (~200 MB)"
 echo "  2. VT parsing uses native libghostty-vt (~55-75 MB/s) vs WASM (~25-44 MB/s) or xterm.js (~15 MB/s)"
-echo "  3. taud survives Electron crashes/restarts — persistent PTY sessions"
+echo "  3. pettyd survives Electron crashes/restarts — persistent PTY sessions"
 echo "  4. Zig event loop has no V8 GC pauses — more predictable latency"
-echo "  5. Binary stream protocol (TASF) is more efficient than serialized JSON over Electron IPC"
+echo "  5. Binary stream protocol (PTSF) is more efficient than serialized JSON over Electron IPC"
 echo ""
 
 echo -e "${BOLD}Full results saved to:${NC} $RESULTS_FILE"

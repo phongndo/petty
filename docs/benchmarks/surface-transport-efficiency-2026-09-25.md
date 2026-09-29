@@ -1,6 +1,6 @@
 # Surface and transport efficiency pass — 2026-09-25
 
-Baseline `78436a4021a1131a31a85f7f67cc9edb387e5009`; candidate is the commit adding this report. Dependencies, `bun.lock` (`844587005bc9…c7791304`) and the Ghostty WASM (`673c8178bc5d…d6c39c5`, `622b4eec…/tau-browser-graphics-v1`) are unchanged. Implemented behavior is described in [terminal byte path](../terminal-byte-path.md).
+Baseline `78436a4021a1131a31a85f7f67cc9edb387e5009`; candidate is the commit adding this report. Dependencies, `bun.lock` (`844587005bc9…c7791304`) and the Ghostty WASM (`673c8178bc5d…d6c39c5`, `622b4eec…/petty-browser-graphics-v1`) are unchanged. Implemented behavior is described in [terminal byte path](../terminal-byte-path.md).
 
 ## Environment and boundaries
 
@@ -10,7 +10,7 @@ Baseline `78436a4021a1131a31a85f7f67cc9edb387e5009`; candidate is the commit add
 
 Surface timing boundaries (`bun run bench:surface`): `parse` = `GhosttyVt.write`; `render` = render-state extraction; `draw` = extraction plus canvas commands. "Presented" means an animation frame ran after the draw that follows the final acknowledgement. `echoDrawn` is from the keydown event's timestamp to the end of the draw after the echo frame was parsed. The echo is injected behind output already inside main's 4 MiB / 512-frame unacknowledged window. This harness uses the real surface, writer and WASM with MessagePort-task delivery. It does not use preload, contextBridge or the daemon.
 
-## Surface (Ghostty/TauTerminal, headless Xvfb)
+## Surface (Ghostty/PettyTerminal, headless Xvfb)
 
 Medians of 5 alternating rounds. That run's candidate still cached a compiled WASM module (rejected below), which affects only pane creation, outside these measurement windows. The pane is 99×42 cells (1200×760 CSS px, DPR 1), except `-4` scenarios, which use four panes in the same area.
 
@@ -49,15 +49,15 @@ The baseline built a `DataView` for every memory read, a BigInt for every cell f
 
 ## Daemon, main parser and packaged transport
 
-Three rounds, alternating, with managed `taud` under a temporary `HOME`.
+Three rounds, alternating, with managed `pettyd` under a temporary `HOME`.
 
 | Measurement                                                     |             Baseline |            Candidate |
 | --------------------------------------------------------------- | -------------------: | -------------------: |
-| Idle echo round trip p50 / max (`latency-taud`, 60 samples)     | 0.03–0.04 / ≤0.43 ms | 0.03–0.04 / ≤0.44 ms |
+| Idle echo round trip p50 / max (`latency-pettyd`, 60 samples)   | 0.03–0.04 / ≤0.43 ms | 0.03–0.04 / ≤0.44 ms |
 | Echo under 8 MiB flood, p50 (`input-priority`)                  |         2.42–2.72 ms |         1.15–1.16 ms |
 | Echo under 8 MiB flood, max                                     |         3.38–3.46 ms |         1.20–2.13 ms |
 | Frames for 1 MiB of 64-byte writes                              |          2,375–2,660 |              232–262 |
-| `taud` CPU, 2 × 16 MiB soak iterations (user + system)          |          3.68–3.77 s |          0.26–0.35 s |
+| `pettyd` CPU, 2 × 16 MiB soak iterations (user + system)        |          3.68–3.77 s |          0.26–0.35 s |
 | 16 MiB soak iteration                                           |       3,152–3,348 ms |       1,641–1,990 ms |
 | Main parser, 16 MiB of stream frames (Node 24, micro-benchmark) |             46–47 ms |               8–9 ms |
 | Packaged 8 MiB flood + input probe: duration                    |       1,524–1,555 ms |           182–186 ms |
@@ -65,13 +65,13 @@ Three rounds, alternating, with managed `taud` under a temporary `HOME`.
 | Packaged 8 MiB flood: input echo                                |         12.4–18.0 ms |          5.3–16.3 ms |
 | Packaged default smoke: renderer load / total                   |   95–97 / 217–219 ms |  96–102 / 220–228 ms |
 
-The packaged flood path uses the real daemon, main bridge and preload, but its subscriber is the smoke script, not `TauTerminal`.
+The packaged flood path uses the real daemon, main bridge and preload, but its subscriber is the smoke script, not `PettyTerminal`.
 
-Every PTY read used to reread `excerpt.txt`, and once the file held 1 MiB, rewrite it too, while holding the daemon lock that input writes also take. That cost dominated daemon system time. Removing it has a side effect: with no per-read file I/O pacing the reader, each read picked up about one producer `write()`. 1 MiB of 64-byte writes became 16,229 frames, which tripped main's 512-frame backlog in `bench:taud:budget` on 5 of 5 runs. The retained change therefore coalesces reads inside a sustained burst (≥8 KiB already read, reads <2 ms apart; wait ≤ ~1 ms). The first read after idle or after input is never delayed. Echo under flood keeps about 1.1 ms of coalescing when the echoing program answers after its first read, as the benchmark's raw-mode echoer does. Kernel (cooked-mode) echo is in the first read after input.
+Every PTY read used to reread `excerpt.txt`, and once the file held 1 MiB, rewrite it too, while holding the daemon lock that input writes also take. That cost dominated daemon system time. Removing it has a side effect: with no per-read file I/O pacing the reader, each read picked up about one producer `write()`. 1 MiB of 64-byte writes became 16,229 frames, which tripped main's 512-frame backlog in `bench:pettyd:budget` on 5 of 5 runs. The retained change therefore coalesces reads inside a sustained burst (≥8 KiB already read, reads <2 ms apart; wait ≤ ~1 ms). The first read after idle or after input is never delayed. Echo under flood keeps about 1.1 ms of coalescing when the echoing program answers after its first read, as the benchmark's raw-mode echoer does. Kernel (cooked-mode) echo is in the first read after input.
 
 ## Validation
 
-On the candidate: `bun run check` passed, including 113 persistence tests, the Zig tests and new excerpt, burst and OOM tests. `bun run build`, `zig:leak-check`, `test:surface` (40 checks, 6 new), `smoke:package` (plain, and with `TAU_ELECTRON_SMOKE_SURFACE=1 TAU_ELECTRON_SMOKE_IMAGE=1`) and `test:shell-lifecycle` passed. So did the latency, input-priority, attach, soak, taud, IPC, startup, reload and app-soak budgets, unchanged. `bench:taud:budget` passed 5/5 on the final daemon.
+On the candidate: `bun run check` passed, including 113 persistence tests, the Zig tests and new excerpt, burst and OOM tests. `bun run build`, `zig:leak-check`, `test:surface` (40 checks, 6 new), `smoke:package` (plain, and with `PETTY_ELECTRON_SMOKE_SURFACE=1 PETTY_ELECTRON_SMOKE_IMAGE=1`) and `test:shell-lifecycle` passed. So did the latency, input-priority, attach, soak, pettyd, IPC, startup, reload and app-soak budgets, unchanged. `bench:pettyd:budget` passed 5/5 on the final daemon.
 
 New regression coverage:
 
@@ -86,15 +86,15 @@ New regression coverage:
 ## Rejected or not attempted
 
 - **Cached compiled WASM module**: saved about 4.5 ms per additional pane or core reset, but retained about 2–5 MB more renderer RSS. Rejected.
-- **Daemon excerpt fix without read coalescing**: echo under flood dropped to about 0.05 ms, but it multiplied frames about 6.5× and failed `bench:taud:budget` 5/5 via main backpressure. Replaced by the coalescing version above.
-- **Coalescing that skips waiting for 50 ms after any input**: `bench:taud:budget` failed 5/5 on its post-input flood. **Coalescing without the volume threshold**: idle echo p50 rose from 0.03 to 1.11 ms. Both rejected.
+- **Daemon excerpt fix without read coalescing**: echo under flood dropped to about 0.05 ms, but it multiplied frames about 6.5× and failed `bench:pettyd:budget` 5/5 via main backpressure. Replaced by the coalescing version above.
+- **Coalescing that skips waiting for 50 ms after any input**: `bench:pettyd:budget` failed 5/5 on its post-input flood. **Coalescing without the volume threshold**: idle echo p50 rose from 0.03 to 1.11 ms. Both rejected.
 - **Not attempted**: merging frames in main (it would coarsen sequence granularity against snapshot reconciliation); batching `fillText` runs (changes shaping and ligatures, unverifiable without the target display); prioritizing the focused pane's writer.
 
 ## Gaps and pre-existing issues
 
 - No real-display or GPU measurement: frame cadence, presentation latency, idle CPU and GPU memory on hardware are unmeasured. Manual review on the supported display is still needed.
-- `bun run test:taud-lifecycle` ("restarts an owned real daemon after process exit") fails identically on the baseline (3/3). It is not in `bun run check`, and this pass leaves it unchanged.
-- On the baseline, one `bench:taud:budget` run out of 10 ended in a daemon `SIGSEGV` right after a slow-subscriber drop; recovery then timed out. It was not reproduced on the candidate (0/15 after coalescing), and it was not diagnosed. The drop/reattach path needs its own investigation.
+- `bun run test:pettyd-lifecycle` ("restarts an owned real daemon after process exit") fails identically on the baseline (3/3). It is not in `bun run check`, and this pass leaves it unchanged.
+- On the baseline, one `bench:pettyd:budget` run out of 10 ended in a daemon `SIGSEGV` right after a slow-subscriber drop; recovery then timed out. It was not reproduced on the candidate (0/15 after coalescing), and it was not diagnosed. The drop/reattach path needs its own investigation.
 - The echo latencies above include this host's scheduling. Treat them as bounded comparisons, not display guarantees.
 
 ## Reproduce
@@ -102,17 +102,17 @@ New regression coverage:
 Under a display (for example `Xvfb :97 -screen 0 1280x800x24 &` and `DISPLAY=:97`), inside `nix develop`:
 
 ```bash
-TAU_SURFACE_BENCH_SOURCES="baseline=/path/to/baseline/apps/desktop,candidate=$PWD/apps/desktop" \
-  TAU_SURFACE_BENCH_ROUNDS=5 bun run bench:surface
-TAU_SURFACE_BENCH_PROFILE=1 TAU_SURFACE_BENCH_ROUNDS=1 \
-  TAU_SURFACE_BENCH_SCENARIOS=flood-sgr,tui-redraw,input-under-load-4 bun run bench:surface
-TAUD_PATH=/path/to/taud bun run --filter @tau/desktop bench:input-priority:budget
-TAUD_PATH=/path/to/taud TAU_SOAK_ITERATIONS=2 TAU_SOAK_BYTES=16777216 bun apps/desktop/bench/taud-soak-benchmark.ts
-TAU_ELECTRON_SMOKE_OUTPUT_BYTES=8388608 TAU_ELECTRON_SMOKE_MAX_INPUT_ECHO_MS=500 \
-  TAU_ELECTRON_SMOKE_OUTPUT_TIMEOUT_MS=8000 bun run smoke:package
+PETTY_SURFACE_BENCH_SOURCES="baseline=/path/to/baseline/apps/desktop,candidate=$PWD/apps/desktop" \
+  PETTY_SURFACE_BENCH_ROUNDS=5 bun run bench:surface
+PETTY_SURFACE_BENCH_PROFILE=1 PETTY_SURFACE_BENCH_ROUNDS=1 \
+  PETTY_SURFACE_BENCH_SCENARIOS=flood-sgr,tui-redraw,input-under-load-4 bun run bench:surface
+PETTYD_PATH=/path/to/pettyd bun run --filter @petty/desktop bench:input-priority:budget
+PETTYD_PATH=/path/to/pettyd PETTY_SOAK_ITERATIONS=2 PETTY_SOAK_BYTES=16777216 bun apps/desktop/bench/pettyd-soak-benchmark.ts
+PETTY_ELECTRON_SMOKE_OUTPUT_BYTES=8388608 PETTY_ELECTRON_SMOKE_MAX_INPUT_ECHO_MS=500 \
+  PETTY_ELECTRON_SMOKE_OUTPUT_TIMEOUT_MS=8000 bun run smoke:package
 ```
 
-Daemon CPU was read from `/proc/<taud pid>/stat` (utime, stime) until the managed daemon exited. The 64-byte-write frame counts used a temporary copy of the soak benchmark with `chunk=b"0123456789abcdef"*4`. Raw JSON and logs were kept in session scratch space and are not part of the repository.
+Daemon CPU was read from `/proc/<pettyd pid>/stat` (utime, stime) until the managed daemon exited. The 64-byte-write frame counts used a temporary copy of the soak benchmark with `chunk=b"0123456789abcdef"*4`. Raw JSON and logs were kept in session scratch space and are not part of the repository.
 
 ## Follow-up levers (same day)
 

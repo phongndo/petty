@@ -31,8 +31,8 @@ function subscribe<T>(listeners: Set<Listener<T>>, listener: Listener<T>): { dis
 
 type Point = { x: number; y: number }
 
-/** Tau-owned canvas and input surface around the pinned libghostty-vt WASM C ABI. */
-export class TauTerminal {
+/** Petty-owned canvas and input surface around the pinned libghostty-vt WASM C ABI. */
+export class PettyTerminal {
   private vt: GhosttyVt
   private wrapper: HTMLElement | null = null
   private canvas: HTMLCanvasElement | null = null
@@ -82,8 +82,8 @@ export class TauTerminal {
   private searchQuery = ''
   private searchIndex = -1
 
-  static async create(): Promise<TauTerminal> {
-    return new TauTerminal(await GhosttyVt.create(await loadWasm()))
+  static async create(): Promise<PettyTerminal> {
+    return new PettyTerminal(await GhosttyVt.create(await loadWasm()))
   }
 
   private constructor(vt: GhosttyVt) {
@@ -125,12 +125,12 @@ export class TauTerminal {
 
   open(wrapper: HTMLElement): void {
     this.wrapper = wrapper
-    wrapper.classList.add('tau-native-terminal')
+    wrapper.classList.add('petty-native-terminal')
     wrapper.style.position = 'relative'
     wrapper.style.overflow = 'hidden'
-    wrapper.style.background = 'var(--tau-terminal-background)'
+    wrapper.style.background = 'var(--petty-terminal-background)'
     const canvas = document.createElement('canvas')
-    canvas.className = 'tau-native-terminal-canvas'
+    canvas.className = 'petty-native-terminal-canvas'
     canvas.style.width = '100%'
     canvas.style.height = '100%'
     canvas.style.display = 'block'
@@ -138,7 +138,7 @@ export class TauTerminal {
     canvas.setAttribute('aria-hidden', 'true')
     this.canvas = canvas
     const textarea = document.createElement('textarea')
-    textarea.className = 'tau-native-terminal-input'
+    textarea.className = 'petty-native-terminal-input'
     textarea.setAttribute('aria-label', 'Terminal input')
     textarea.setAttribute('autocomplete', 'off')
     textarea.setAttribute('autocorrect', 'off')
@@ -160,7 +160,7 @@ export class TauTerminal {
     // Canvas pixels are hidden from assistive technology. Expose the same viewport text as a
     // separately navigable, non-live region; never announce every frame of shell output.
     const screenReader = document.createElement('pre')
-    screenReader.className = 'tau-native-terminal-screen-reader'
+    screenReader.className = 'petty-native-terminal-screen-reader'
     screenReader.setAttribute('role', 'region')
     screenReader.setAttribute('aria-label', 'Terminal screen')
     screenReader.setAttribute('aria-live', 'off')
@@ -194,7 +194,7 @@ export class TauTerminal {
     textarea.addEventListener('compositionend', this.compositionEnd)
     textarea.addEventListener('paste', this.paste)
     textarea.addEventListener('copy', this.copy)
-    window.addEventListener('tau:appearance', this.appearanceChanged)
+    window.addEventListener('petty:appearance', this.appearanceChanged)
     this.appearanceChanged()
   }
 
@@ -856,7 +856,7 @@ export class TauTerminal {
     this.textarea?.removeEventListener('compositionend', this.compositionEnd)
     this.textarea?.removeEventListener('paste', this.paste)
     this.textarea?.removeEventListener('copy', this.copy)
-    window.removeEventListener('tau:appearance', this.appearanceChanged)
+    window.removeEventListener('petty:appearance', this.appearanceChanged)
     this.vt.dispose()
     this.imageCanvases.clear()
     this.wrapper?.replaceChildren()

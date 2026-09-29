@@ -5,8 +5,11 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import net from 'node:net'
 import { fileURLToPath } from 'node:url'
-import { TAUD_CONTROL_CAPABILITIES, TAUD_CONTROL_PROTOCOL_VERSION } from '@tau/shared/taud-protocol'
-import { TaudClient, type TaudControlResponse } from './taud-client'
+import {
+  PETTYD_CONTROL_CAPABILITIES,
+  PETTYD_CONTROL_PROTOCOL_VERSION,
+} from '@petty/shared/pettyd-protocol'
+import { PettydClient, type PettydControlResponse } from './pettyd-client'
 
 type ControlRequest = Record<string, unknown>
 
@@ -38,21 +41,21 @@ const controlDiagnostics = {
 const fixtureRoot = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../../../..',
-  'packages/shared/fixtures/taud-protocol',
+  'packages/shared/fixtures/pettyd-protocol',
 )
 
 function readJsonFixture(name: string): ControlRequest {
   return JSON.parse(readFileSync(resolve(fixtureRoot, name), 'utf8').trim()) as ControlRequest
 }
 
-function pingResponse(overrides: Partial<TaudControlResponse> = {}): TaudControlResponse {
+function pingResponse(overrides: Partial<PettydControlResponse> = {}): PettydControlResponse {
   return {
     id: 'ping-test',
     ok: true,
     status: 'ok',
-    protocol_version: TAUD_CONTROL_PROTOCOL_VERSION,
+    protocol_version: PETTYD_CONTROL_PROTOCOL_VERSION,
     daemon_version: 'test-daemon',
-    capabilities: [...TAUD_CONTROL_CAPABILITIES],
+    capabilities: [...PETTYD_CONTROL_CAPABILITIES],
     stream_diagnostics: streamDiagnostics,
     control_diagnostics: controlDiagnostics,
     ...overrides,
@@ -60,16 +63,16 @@ function pingResponse(overrides: Partial<TaudControlResponse> = {}): TaudControl
 }
 
 async function withSocketPath<T>(run: (socketPath: string) => Promise<T>): Promise<T> {
-  const dir = mkdtempSync(join(tmpdir(), 'tau-taud-client-'))
+  const dir = mkdtempSync(join(tmpdir(), 'petty-pettyd-client-'))
   try {
-    return await run(join(dir, 'taud.sock'))
+    return await run(join(dir, 'pettyd.sock'))
   } finally {
     rmSync(dir, { force: true, recursive: true })
   }
 }
 
 async function withControlServer<T>(
-  handler: (request: ControlRequest) => TaudControlResponse | 'close',
+  handler: (request: ControlRequest) => PettydControlResponse | 'close',
   run: (socketPath: string) => Promise<T>,
 ): Promise<T> {
   return withSocketPath(async (socketPath) => {
@@ -112,8 +115,8 @@ async function withControlServer<T>(
   })
 }
 
-function testClient(socketPath: string): TaudClient {
-  return new TaudClient({
+function testClient(socketPath: string): PettydClient {
+  return new PettydClient({
     socketPath,
     connectTimeoutMs: 50,
     controlResponseTimeoutMs: 100,
@@ -124,7 +127,7 @@ function testClient(socketPath: string): TaudClient {
   })
 }
 
-test('TaudClient lifecycle diagnostics report absent socket without spawning', async () => {
+test('PettydClient lifecycle diagnostics report absent socket without spawning', async () => {
   await withSocketPath(async (socketPath) => {
     const client = testClient(socketPath)
     try {
@@ -147,7 +150,7 @@ test('TaudClient lifecycle diagnostics report absent socket without spawning', a
   })
 })
 
-test('TaudClient lifecycle diagnostics report compatible external daemon and stream counters', async () => {
+test('PettydClient lifecycle diagnostics report compatible external daemon and stream counters', async () => {
   await withControlServer(
     (request) => {
       assert.equal(request.type, 'ping')
@@ -157,13 +160,13 @@ test('TaudClient lifecycle diagnostics report compatible external daemon and str
       const client = testClient(socketPath)
       try {
         const diagnostics = await client.refreshLifecycleDiagnostics()
-        assert.match(diagnostics.clientTraceId, /^taud-client-/)
+        assert.match(diagnostics.clientTraceId, /^pettyd-client-/)
         assert.equal(diagnostics.state, 'external-live')
         assert.equal(diagnostics.daemonOwnership, 'external')
         assert.equal(diagnostics.recoveryAction, 'reuse-external-daemon')
         assert.equal(diagnostics.daemonVersion, 'test-daemon')
-        assert.equal(diagnostics.protocolVersion, TAUD_CONTROL_PROTOCOL_VERSION)
-        assert.deepEqual(diagnostics.capabilities, [...TAUD_CONTROL_CAPABILITIES])
+        assert.equal(diagnostics.protocolVersion, PETTYD_CONTROL_PROTOCOL_VERSION)
+        assert.deepEqual(diagnostics.capabilities, [...PETTYD_CONTROL_CAPABILITIES])
         assert.equal(diagnostics.streamDiagnostics?.outputBytesTotal, 1234)
         assert.equal(diagnostics.streamDiagnostics?.pendingOutputDroppedFramesTotal, 1)
         assert.equal(diagnostics.streamDiagnostics?.pendingOutputDroppedBytesTotal, 256)
@@ -187,7 +190,7 @@ test('TaudClient lifecycle diagnostics report compatible external daemon and str
   )
 })
 
-test('TaudClient lifecycle recovery reuses compatible external daemons', async () => {
+test('PettydClient lifecycle recovery reuses compatible external daemons', async () => {
   await withControlServer(
     (request) => {
       assert.equal(request.type, 'ping')
@@ -210,7 +213,7 @@ test('TaudClient lifecycle recovery reuses compatible external daemons', async (
   )
 })
 
-test('TaudClient lifecycle diagnostics report protocol version mismatch', async () => {
+test('PettydClient lifecycle diagnostics report protocol version mismatch', async () => {
   await withControlServer(
     (request) => pingResponse({ id: String(request.id ?? 'ping-test'), protocol_version: 999 }),
     async (socketPath) => {
@@ -229,7 +232,7 @@ test('TaudClient lifecycle diagnostics report protocol version mismatch', async 
   )
 })
 
-test('TaudClient lifecycle recovery refuses to replace external incompatible daemons', async () => {
+test('PettydClient lifecycle recovery refuses to replace external incompatible daemons', async () => {
   await withControlServer(
     (request) => pingResponse({ id: String(request.id ?? 'ping-test'), protocol_version: 999 }),
     async (socketPath) => {
@@ -251,7 +254,7 @@ test('TaudClient lifecycle recovery refuses to replace external incompatible dae
   )
 })
 
-test('TaudClient lifecycle diagnostics report stale socket on malformed daemon response', async () => {
+test('PettydClient lifecycle diagnostics report stale socket on malformed daemon response', async () => {
   await withControlServer(
     () => 'close',
     async (socketPath) => {
@@ -269,7 +272,7 @@ test('TaudClient lifecycle diagnostics report stale socket on malformed daemon r
   )
 })
 
-test('TaudClient records control request timing for successful daemon calls', async () => {
+test('PettydClient records control request timing for successful daemon calls', async () => {
   await withControlServer(
     (request) => {
       if (request.type === 'ping') return pingResponse({ id: String(request.id ?? 'ping-test') })
@@ -320,7 +323,7 @@ test('TaudClient records control request timing for successful daemon calls', as
   )
 })
 
-test('TaudClient session maintenance response shapes match shared protocol fixtures', async () => {
+test('PettydClient session maintenance response shapes match shared protocol fixtures', async () => {
   await withControlServer(
     (request) => {
       if (request.type === 'ping') return pingResponse({ id: String(request.id ?? 'ping-test') })
@@ -330,18 +333,18 @@ test('TaudClient session maintenance response shapes match shared protocol fixtu
         request.type === 'detach' ||
         request.type === 'kill'
       ) {
-        return readJsonFixture('control-session-response.ndjson') as TaudControlResponse
+        return readJsonFixture('control-session-response.ndjson') as PettydControlResponse
       }
       if (request.type === 'clear-history') {
-        return readJsonFixture('control-clear-history-response.ndjson') as TaudControlResponse
+        return readJsonFixture('control-clear-history-response.ndjson') as PettydControlResponse
       }
       if (request.type === 'cleanup') {
-        return readJsonFixture('control-cleanup-response.ndjson') as TaudControlResponse
+        return readJsonFixture('control-cleanup-response.ndjson') as PettydControlResponse
       }
       if (request.type === 'configure-persistence') {
         return readJsonFixture(
           'control-configure-persistence-response.ndjson',
-        ) as TaudControlResponse
+        ) as PettydControlResponse
       }
       return {
         id: String(request.id ?? 'unexpected'),
@@ -358,11 +361,11 @@ test('TaudClient session maintenance response shapes match shared protocol fixtu
           terminalId: 'terminal-fixture',
           cols: 80,
           rows: 24,
-          cwd: '/tmp/tau',
+          cwd: '/tmp/petty',
         })
         assert.equal(create.session_id, 'session-fixture')
         assert.equal(create.status, 'live')
-        assert.equal(create.cwd, '/tmp/tau')
+        assert.equal(create.cwd, '/tmp/petty')
         assert.equal(create.cols, 80)
         assert.equal(create.rows, 24)
         assert.equal(create.last_seq, 0)

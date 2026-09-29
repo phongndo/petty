@@ -1,11 +1,11 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
-import { defaultSettings } from '@tau/shared/preferences'
-import type { SettingsData } from '@tau/shared/session'
-import type { AppCommand } from '@tau/shared/app-command'
+import { defaultSettings } from '@petty/shared/preferences'
+import type { SettingsData } from '@petty/shared/session'
+import type { AppCommand } from '@petty/shared/app-command'
 import type {
-  TaudLifecycleDiagnostics,
-  TaudLifecycleRecoveryAction,
-} from '@tau/shared/taud-protocol'
+  PettydLifecycleDiagnostics,
+  PettydLifecycleRecoveryAction,
+} from '@petty/shared/pettyd-protocol'
 import { sanitizeTerminalTitle } from '../osc-title'
 import { disposeTerminalRuntime } from '../terminal'
 import { markRendererEvent } from '../trace'
@@ -17,9 +17,9 @@ import {
   type MosaicLayoutNode,
 } from '../state/layout'
 import { startGraphSync } from '../state/graph-sync'
-import { useTau } from '../state/solid'
+import { usePetty } from '../state/solid'
 import {
-  useTauStore,
+  usePettyStore,
   workspaceFolderName,
   type Pane,
   type Tab,
@@ -68,7 +68,7 @@ function PaneLeaf(props: {
             }}
             onCwdChange={(cwd) => {
               const id = props.pane?.id
-              if (id) useTauStore.getState().setPaneCwd(id, cwd)
+              if (id) usePettyStore.getState().setPaneCwd(id, cwd)
             }}
             onExit={() => {
               const id = props.pane?.id
@@ -252,11 +252,11 @@ function PaneTree(props: {
 export function App() {
   const isMac = navigator.platform.startsWith('Mac')
   document.documentElement.dataset.platform = isMac ? 'macos' : 'other'
-  const tabs = useTau((state) => state.tabs)
-  const workspaces = useTau((state) => state.workspaces)
-  const panes = useTau((state) => state.panes)
-  const activeTabId = useTau((state) => state.activeTabId)
-  const activePaneId = useTau((state) => state.activePaneId)
+  const tabs = usePetty((state) => state.tabs)
+  const workspaces = usePetty((state) => state.workspaces)
+  const panes = usePetty((state) => state.panes)
+  const activeTabId = usePetty((state) => state.activeTabId)
+  const activePaneId = usePetty((state) => state.activePaneId)
   const sorted = createMemo(() => [...tabs()].sort((a, b) => a.order - b.order))
   const byId = createMemo(() => new Map(panes().map((pane) => [pane.id, pane])))
   const activeTab = createMemo(
@@ -276,7 +276,7 @@ export function App() {
   const systemColors = window.matchMedia('(prefers-color-scheme: dark)')
   const tabTitle = (tab: Tab) => {
     const extensions = tab.extensions as Record<string, unknown> | undefined
-    if (typeof extensions?.tauManualName === 'string') return extensions.tauManualName
+    if (typeof extensions?.pettyManualName === 'string') return extensions.pettyManualName
     const id = tab.lastActivePaneId ?? getFirstPaneId(tab.layout)
     return (
       sanitizeTerminalTitle(
@@ -286,7 +286,7 @@ export function App() {
   }
   const [focus, setFocus] = createSignal<Record<string, number>>({})
   const [search, setSearch] = createSignal<Record<string, number>>({})
-  const [diagnostics, setDiagnostics] = createSignal<TaudLifecycleDiagnostics | null>(null)
+  const [diagnostics, setDiagnostics] = createSignal<PettydLifecycleDiagnostics | null>(null)
   const [recoverError, setRecoverError] = createSignal('')
   const [recovering, setRecovering] = createSignal(false)
   let previous = new Map<string, string>()
@@ -332,7 +332,7 @@ export function App() {
       )
     )
       return
-    useTauStore.getState().closeWorkspace(workspace.id)
+    usePettyStore.getState().closeWorkspace(workspace.id)
   }
 
   const applySettings = (data: SettingsData) => {
@@ -356,7 +356,7 @@ export function App() {
       '--terminal-font-family',
       data.terminal?.fontFamily ?? 'monospace',
     )
-    window.dispatchEvent(new Event('tau:appearance'))
+    window.dispatchEvent(new Event('petty:appearance'))
   }
   const saveSettings = async (data: SettingsData) => {
     const old = settings()
@@ -382,7 +382,7 @@ export function App() {
       !window.confirm('Close this tab? Sessions stay available for recovery.')
     )
       return
-    useTauStore.getState().closeTab(id)
+    usePettyStore.getState().closeTab(id)
   }
   const closePane = () => {
     if (
@@ -390,13 +390,13 @@ export function App() {
       !window.confirm('Close this pane? Sessions stay available for recovery.')
     )
       return
-    const state = useTauStore.getState()
+    const state = usePettyStore.getState()
     const finalPane = state.panes.length === 1
     state.closeActivePane()
     if (finalPane) window.close()
   }
   const runCommand = (command: AppCommand) => {
-    const state = useTauStore.getState()
+    const state = usePettyStore.getState()
     switch (command.type) {
       case 'new-tab':
         setSettingsOpen(false)
@@ -514,7 +514,7 @@ export function App() {
     let cancelled = false
     const refresh = async () => {
       try {
-        const value = await window.electronAPI.getTaudDiagnostics()
+        const value = await window.electronAPI.getPettydDiagnostics()
         if (!cancelled) setDiagnostics(value)
       } catch (error) {
         if (!cancelled) setRecoverError(String(error))
@@ -527,11 +527,11 @@ export function App() {
       if (timer) clearTimeout(timer)
     })
   })
-  const recover = async (action: TaudLifecycleRecoveryAction) => {
+  const recover = async (action: PettydLifecycleRecoveryAction) => {
     setRecovering(true)
     setRecoverError('')
     try {
-      setDiagnostics(await window.electronAPI.recoverTaud(action))
+      setDiagnostics(await window.electronAPI.recoverPettyd(action))
     } catch (error) {
       setRecoverError(String(error))
     } finally {
@@ -540,7 +540,7 @@ export function App() {
   }
   return (
     <div
-      class="tau-shell"
+      class="petty-shell"
       classList={{
         'sidebar-hidden': settings().appearance?.sidebar === false,
         'settings-open': settingsOpen(),
@@ -560,7 +560,7 @@ export function App() {
               class="sidebar-add no-drag"
               aria-label="New workspace"
               title="New workspace"
-              onClick={() => useTauStore.getState().newWorkspace()}
+              onClick={() => usePettyStore.getState().newWorkspace()}
             >
               +
             </button>
@@ -579,7 +579,7 @@ export function App() {
                     title={workspaceFolderName(workspace, tabs(), panes())}
                     onClick={() => {
                       setSettingsOpen(false)
-                      useTauStore.getState().selectWorkspace(workspace.id)
+                      usePettyStore.getState().selectWorkspace(workspace.id)
                     }}
                   >
                     <span class="truncate">{workspaceFolderName(workspace, tabs(), panes())}</span>
@@ -654,7 +654,7 @@ export function App() {
                           title={`${tabTitle(tab)} · Double-click to rename`}
                           onClick={() => {
                             setSettingsOpen(false)
-                            useTauStore.getState().selectTab(tab.id)
+                            usePettyStore.getState().selectTab(tab.id)
                           }}
                           onDblClick={() => setEditingTab(tab.id)}
                         >
@@ -674,13 +674,13 @@ export function App() {
                         }
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
-                            useTauStore.getState().renameTab(tab.id, event.currentTarget.value)
+                            usePettyStore.getState().renameTab(tab.id, event.currentTarget.value)
                             setEditingTab(null)
                           } else if (event.key === 'Escape') setEditingTab(null)
                         }}
                         onBlur={(event) => {
                           if (editingTab() !== tab.id) return
-                          useTauStore.getState().renameTab(tab.id, event.currentTarget.value)
+                          usePettyStore.getState().renameTab(tab.id, event.currentTarget.value)
                           setEditingTab(null)
                         }}
                       />
@@ -701,7 +701,7 @@ export function App() {
                 class="topbar-tab-add"
                 aria-label="New tab"
                 title="New tab"
-                onClick={() => useTauStore.getState().newTab()}
+                onClick={() => usePettyStore.getState().newTab()}
               >
                 +
               </button>
@@ -711,7 +711,7 @@ export function App() {
                 type="button"
                 title="Split right"
                 aria-label="Split right"
-                onClick={() => useTauStore.getState().splitActivePane('row')}
+                onClick={() => usePettyStore.getState().splitActivePane('row')}
               >
                 <svg viewBox="0 0 20 20" aria-hidden="true">
                   <rect x="2" y="3" width="16" height="14" rx="2" />
@@ -722,7 +722,7 @@ export function App() {
                 type="button"
                 title="Split down"
                 aria-label="Split down"
-                onClick={() => useTauStore.getState().splitActivePane('column')}
+                onClick={() => usePettyStore.getState().splitActivePane('column')}
               >
                 <svg viewBox="0 0 20 20" aria-hidden="true">
                   <rect x="2" y="3" width="16" height="14" rx="2" />
@@ -753,10 +753,10 @@ export function App() {
                   focus={focus()}
                   search={search()}
                   onSelect={(id) => {
-                    if (id !== useTauStore.getState().activePaneId)
-                      useTauStore.getState().selectPane(id)
+                    if (id !== usePettyStore.getState().activePaneId)
+                      usePettyStore.getState().selectPane(id)
                   }}
-                  onTitle={(id, title) => useTauStore.getState().setPaneTitle(id, title)}
+                  onTitle={(id, title) => usePettyStore.getState().setPaneTitle(id, title)}
                   onProcessTitle={(id, title) => {
                     const normalized = sanitizeTerminalTitle(title)
                     if (normalized)
@@ -768,9 +768,9 @@ export function App() {
                       delete next[id]
                       return next
                     })
-                    useTauStore.getState().restartPaneSession(id)
+                    usePettyStore.getState().restartPaneSession(id)
                   }}
-                  onResize={(layout) => useTauStore.getState().setTabLayout(tab().id, layout)}
+                  onResize={(layout) => usePettyStore.getState().setTabLayout(tab().id, layout)}
                 />
               )}
             </Show>

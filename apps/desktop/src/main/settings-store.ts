@@ -1,11 +1,11 @@
 import { homedir } from 'node:os'
 import { Schema } from 'effect'
-import { SettingsDataSchema, type SettingsData } from '@tau/shared/session'
-import { validateSettings } from '@tau/shared/preferences'
-import { resolveTauStoragePaths } from '@tau/shared/storage-path'
+import { SettingsDataSchema, type SettingsData } from '@petty/shared/session'
+import { validateSettings } from '@petty/shared/preferences'
+import { resolvePettyStoragePaths } from '@petty/shared/storage-path'
 import { readJsonFile, writeJsonFile } from './file-store'
 
-const settingsPath = resolveTauStoragePaths(homedir()).settings
+const settingsPath = resolvePettyStoragePaths(homedir()).settings
 
 export async function readSettings(): Promise<SettingsData | null> {
   const data = await readJsonFile<unknown>(settingsPath)

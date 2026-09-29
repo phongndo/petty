@@ -23,14 +23,14 @@ _ensure-package-manager:
 electron:
     pnpm exec tsx scripts/electron-install.ts
 
-# Kill any running taud daemon and start a fresh dev server.
+# Kill any running pettyd daemon and start a fresh dev server.
 [unix]
 dev:
-    pkill -TERM -x taud || true
-    for _ in {1..20}; do pgrep -x taud >/dev/null || break; sleep 0.1; done
-    if pgrep -x taud >/dev/null; then echo "taud did not stop after TERM" >&2; exit 1; fi
+    pkill -TERM -x pettyd || true
+    for _ in {1..20}; do pgrep -x pettyd >/dev/null || break; sleep 0.1; done
+    if pgrep -x pettyd >/dev/null; then echo "pettyd did not stop after TERM" >&2; exit 1; fi
     pnpm dev
 
 [windows]
 dev:
-    $ErrorActionPreference = 'Stop'; Get-Process -Name taud -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue; for ($i = 0; $i -lt 20 -and (Get-Process -Name taud -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 100 }; if (Get-Process -Name taud -ErrorAction SilentlyContinue) { throw 'taud did not stop after stop request' }; pnpm dev
+    $ErrorActionPreference = 'Stop'; Get-Process -Name pettyd -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue; for ($i = 0; $i -lt 20 -and (Get-Process -Name pettyd -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 100 }; if (Get-Process -Name pettyd -ErrorAction SilentlyContinue) { throw 'pettyd did not stop after stop request' }; pnpm dev

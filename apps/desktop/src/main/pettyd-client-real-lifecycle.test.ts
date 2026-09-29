@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import { resolveTauStoragePaths } from '@tau/shared/storage-path'
-import { TaudClient } from './taud-client'
+import { resolvePettyStoragePaths } from '@petty/shared/storage-path'
+import { PettydClient } from './pettyd-client'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const desktopRoot = resolve(testDir, '../..')
@@ -32,10 +32,10 @@ async function terminateProcess(pid: number): Promise<void> {
   })
 }
 
-function findTaudBinary(): string | null {
-  const exeName = process.platform === 'win32' ? 'taud.exe' : 'taud'
+function findPettydBinary(): string | null {
+  const exeName = process.platform === 'win32' ? 'pettyd.exe' : 'pettyd'
   const candidates = [
-    process.env.TAUD_PATH,
+    process.env.PETTYD_PATH,
     resolve(desktopRoot, 'out/bin', exeName),
     resolve(repoRoot, 'apps/daemon/zig-out/bin', exeName),
   ].filter(Boolean) as string[]
@@ -60,25 +60,25 @@ async function waitFor(
 }
 
 test(
-  'TaudClient restarts an owned real daemon after process exit',
-  { skip: process.platform === 'win32' ? 'taud lifecycle integration is POSIX-only' : false },
+  'PettydClient restarts an owned real daemon after process exit',
+  { skip: process.platform === 'win32' ? 'pettyd lifecycle integration is POSIX-only' : false },
   async (context) => {
-    const binaryPath = findTaudBinary()
+    const binaryPath = findPettydBinary()
     if (!binaryPath) {
-      context.skip('taud binary not found; run pnpm build first')
+      context.skip('pettyd binary not found; run pnpm build first')
       return
     }
 
     const previousHome = process.env.HOME
-    const previousTaudPath = process.env.TAUD_PATH
-    const previousAdapterDir = process.env.TAUD_ADAPTER_DIR
-    const home = mkdtempSync(resolve(tmpdir(), 'tau-real-lifecycle-'))
+    const previousPettydPath = process.env.PETTYD_PATH
+    const previousAdapterDir = process.env.PETTYD_ADAPTER_DIR
+    const home = mkdtempSync(resolve(tmpdir(), 'petty-real-lifecycle-'))
     process.env.HOME = home
-    process.env.TAUD_PATH = binaryPath
-    process.env.TAUD_ADAPTER_DIR = resolve(desktopRoot, 'out/adapters')
+    process.env.PETTYD_PATH = binaryPath
+    process.env.PETTYD_ADAPTER_DIR = resolve(desktopRoot, 'out/adapters')
 
-    const client = new TaudClient({
-      socketPath: resolveTauStoragePaths(home).socket,
+    const client = new PettydClient({
+      socketPath: resolvePettyStoragePaths(home).socket,
       connectTimeoutMs: 100,
       controlResponseTimeoutMs: 1000,
       startTimeoutMs: 5000,
@@ -131,34 +131,34 @@ test(
       rmSync(home, { recursive: true, force: true })
       if (previousHome === undefined) delete process.env.HOME
       else process.env.HOME = previousHome
-      if (previousTaudPath === undefined) delete process.env.TAUD_PATH
-      else process.env.TAUD_PATH = previousTaudPath
-      if (previousAdapterDir === undefined) delete process.env.TAUD_ADAPTER_DIR
-      else process.env.TAUD_ADAPTER_DIR = previousAdapterDir
+      if (previousPettydPath === undefined) delete process.env.PETTYD_PATH
+      else process.env.PETTYD_PATH = previousPettydPath
+      if (previousAdapterDir === undefined) delete process.env.PETTYD_ADAPTER_DIR
+      else process.env.PETTYD_ADAPTER_DIR = previousAdapterDir
     }
   },
 )
 
 test(
-  'TaudClient dispose preserves a detached daemon for app quit semantics',
-  { skip: process.platform === 'win32' ? 'taud lifecycle integration is POSIX-only' : false },
+  'PettydClient dispose preserves a detached daemon for app quit semantics',
+  { skip: process.platform === 'win32' ? 'pettyd lifecycle integration is POSIX-only' : false },
   async (context) => {
-    const binaryPath = findTaudBinary()
+    const binaryPath = findPettydBinary()
     if (!binaryPath) {
-      context.skip('taud binary not found; run pnpm build first')
+      context.skip('pettyd binary not found; run pnpm build first')
       return
     }
 
     const previousHome = process.env.HOME
-    const previousTaudPath = process.env.TAUD_PATH
-    const previousAdapterDir = process.env.TAUD_ADAPTER_DIR
-    const home = mkdtempSync(resolve(tmpdir(), 'tau-detached-quit-'))
+    const previousPettydPath = process.env.PETTYD_PATH
+    const previousAdapterDir = process.env.PETTYD_ADAPTER_DIR
+    const home = mkdtempSync(resolve(tmpdir(), 'petty-detached-quit-'))
     process.env.HOME = home
-    process.env.TAUD_PATH = binaryPath
-    process.env.TAUD_ADAPTER_DIR = resolve(desktopRoot, 'out/adapters')
+    process.env.PETTYD_PATH = binaryPath
+    process.env.PETTYD_ADAPTER_DIR = resolve(desktopRoot, 'out/adapters')
 
-    const client = new TaudClient({
-      socketPath: resolveTauStoragePaths(home).socket,
+    const client = new PettydClient({
+      socketPath: resolvePettyStoragePaths(home).socket,
       connectTimeoutMs: 100,
       controlResponseTimeoutMs: 1000,
       startTimeoutMs: 5000,
@@ -196,16 +196,16 @@ test(
       rmSync(home, { recursive: true, force: true })
       if (previousHome === undefined) delete process.env.HOME
       else process.env.HOME = previousHome
-      if (previousTaudPath === undefined) delete process.env.TAUD_PATH
-      else process.env.TAUD_PATH = previousTaudPath
-      if (previousAdapterDir === undefined) delete process.env.TAUD_ADAPTER_DIR
-      else process.env.TAUD_ADAPTER_DIR = previousAdapterDir
+      if (previousPettydPath === undefined) delete process.env.PETTYD_PATH
+      else process.env.PETTYD_PATH = previousPettydPath
+      if (previousAdapterDir === undefined) delete process.env.PETTYD_ADAPTER_DIR
+      else process.env.PETTYD_ADAPTER_DIR = previousAdapterDir
     }
   },
 )
 
 test(
-  'TaudClient records failure and restarts when owned daemon exits mid-request',
+  'PettydClient records failure and restarts when owned daemon exits mid-request',
   {
     skip:
       process.platform !== 'darwin'
@@ -213,22 +213,22 @@ test(
         : false,
   },
   async (context) => {
-    const binaryPath = findTaudBinary()
+    const binaryPath = findPettydBinary()
     if (!binaryPath) {
-      context.skip('taud binary not found; run pnpm build first')
+      context.skip('pettyd binary not found; run pnpm build first')
       return
     }
 
     const previousHome = process.env.HOME
-    const previousTaudPath = process.env.TAUD_PATH
-    const previousAdapterDir = process.env.TAUD_ADAPTER_DIR
-    const home = mkdtempSync(resolve(tmpdir(), 'tau-mid-request-'))
+    const previousPettydPath = process.env.PETTYD_PATH
+    const previousAdapterDir = process.env.PETTYD_ADAPTER_DIR
+    const home = mkdtempSync(resolve(tmpdir(), 'petty-mid-request-'))
     process.env.HOME = home
-    process.env.TAUD_PATH = binaryPath
-    process.env.TAUD_ADAPTER_DIR = resolve(desktopRoot, 'out/adapters')
+    process.env.PETTYD_PATH = binaryPath
+    process.env.PETTYD_ADAPTER_DIR = resolve(desktopRoot, 'out/adapters')
 
-    const client = new TaudClient({
-      socketPath: resolveTauStoragePaths(home).socket,
+    const client = new PettydClient({
+      socketPath: resolvePettyStoragePaths(home).socket,
       connectTimeoutMs: 100,
       controlResponseTimeoutMs: 5000,
       startTimeoutMs: 5000,
@@ -266,10 +266,10 @@ test(
       rmSync(home, { recursive: true, force: true })
       if (previousHome === undefined) delete process.env.HOME
       else process.env.HOME = previousHome
-      if (previousTaudPath === undefined) delete process.env.TAUD_PATH
-      else process.env.TAUD_PATH = previousTaudPath
-      if (previousAdapterDir === undefined) delete process.env.TAUD_ADAPTER_DIR
-      else process.env.TAUD_ADAPTER_DIR = previousAdapterDir
+      if (previousPettydPath === undefined) delete process.env.PETTYD_PATH
+      else process.env.PETTYD_PATH = previousPettydPath
+      if (previousAdapterDir === undefined) delete process.env.PETTYD_ADAPTER_DIR
+      else process.env.PETTYD_ADAPTER_DIR = previousAdapterDir
     }
   },
 )

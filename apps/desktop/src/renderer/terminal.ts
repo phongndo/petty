@@ -1,4 +1,4 @@
-import { TauTerminal as Terminal } from './tau-terminal'
+import { PettyTerminal as Terminal } from './petty-terminal'
 import {
   decodeCurrentScreenSnapshot,
   decodeFallbackCurrentScreenSnapshotPayload,
@@ -7,12 +7,12 @@ import {
   ghosttyNativeCurrentScreenSnapshotToAnsi,
   isGhosttyNativeCurrentScreenSnapshot,
   isFallbackCurrentScreenSnapshot,
-} from '@tau/shared/current-screen-snapshot'
+} from '@petty/shared/current-screen-snapshot'
 import type {
   AttachSessionResult,
   CurrentScreenSnapshotFrame,
   OutputFrame,
-} from '@tau/shared/taud-protocol'
+} from '@petty/shared/pettyd-protocol'
 import {
   createSequencedTerminalWriter,
   inputBoostPriority,
@@ -44,7 +44,7 @@ const MIN_TERMINAL_ROWS = 1
 type TerminalDiagnosticsRegistry = Map<string, () => TerminalOutputWriterDiagnostics>
 
 type DiagnosticWindow = Window & {
-  __TAU_TERMINAL_DIAGNOSTICS__?: TerminalDiagnosticsRegistry
+  __PETTY_TERMINAL_DIAGNOSTICS__?: TerminalDiagnosticsRegistry
 }
 
 type TerminalRuntime = {
@@ -99,11 +99,11 @@ function renderTerminalError(container: HTMLElement, err: unknown) {
 }
 
 function getTerminalParkingContainer(): HTMLElement {
-  const existing = document.getElementById('tau-terminal-parking')
+  const existing = document.getElementById('petty-terminal-parking')
   if (existing) return existing
 
   const parking = document.createElement('div')
-  parking.id = 'tau-terminal-parking'
+  parking.id = 'petty-terminal-parking'
   parking.setAttribute('aria-hidden', 'true')
   parking.style.position = 'fixed'
   parking.style.left = '-10000px'
@@ -126,8 +126,8 @@ function createTerminalWrapper(): HTMLDivElement {
 
 function terminalDiagnosticsRegistry(): TerminalDiagnosticsRegistry {
   const diagnosticWindow = window as DiagnosticWindow
-  diagnosticWindow.__TAU_TERMINAL_DIAGNOSTICS__ ??= new Map()
-  return diagnosticWindow.__TAU_TERMINAL_DIAGNOSTICS__
+  diagnosticWindow.__PETTY_TERMINAL_DIAGNOSTICS__ ??= new Map()
+  return diagnosticWindow.__PETTY_TERMINAL_DIAGNOSTICS__
 }
 
 function nextAnimationFrame(): Promise<void> {
@@ -435,7 +435,7 @@ export async function createTerminal(
     await fontsReady.finally(finishFonts)
     updateStatus(`Terminal fonts ready in ${(performance.now() - t0).toFixed(0)}ms`)
 
-    // Step 2: Instantiate Tau's direct Ghostty VT core and its canvas surface.
+    // Step 2: Instantiate Petty's direct Ghostty VT core and its canvas surface.
     updateStatus('Creating terminal...')
 
     term = await Terminal.create()

@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { AttachSessionModeSchema } from '@tau/shared/taud-protocol'
+import { AttachSessionModeSchema } from '@petty/shared/pettyd-protocol'
 
 export const PtySizeSchema = Schema.Struct({
   cols: Schema.Number,
@@ -111,7 +111,7 @@ export const PtyServiceMessageSchema = Schema.Union([
   }),
 ])
 
-export const TaudPtyBridgeDiagnosticsSchema = Schema.Struct({
+export const PettydPtyBridgeDiagnosticsSchema = Schema.Struct({
   portConnected: Schema.Boolean,
   activeSessions: Schema.Number,
   activeStreams: Schema.Number,
@@ -136,4 +136,4 @@ export type PtySize = Schema.Schema.Type<typeof PtySizeSchema>
 export type PtyExitInfo = Schema.Schema.Type<typeof PtyExitInfoSchema>
 export type PtyClientMessage = Schema.Schema.Type<typeof PtyClientMessageSchema>
 export type PtyServiceMessage = Schema.Schema.Type<typeof PtyServiceMessageSchema>
-export type TaudPtyBridgeDiagnostics = Schema.Schema.Type<typeof TaudPtyBridgeDiagnosticsSchema>
+export type PettydPtyBridgeDiagnostics = Schema.Schema.Type<typeof PettydPtyBridgeDiagnosticsSchema>

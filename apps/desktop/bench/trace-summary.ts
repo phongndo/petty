@@ -111,7 +111,7 @@ function topDurationGroups(
 
 function main(): void {
   const tracePath = resolve(process.argv[2] ?? 'out/bench/electron-smoke-trace.json')
-  const longTaskThresholdMs = readPositiveNumberEnv('TAU_TRACE_LONG_TASK_MS', 50, 60_000)
+  const longTaskThresholdMs = readPositiveNumberEnv('PETTY_TRACE_LONG_TASK_MS', 50, 60_000)
 
   if (!existsSync(tracePath)) {
     throw new Error(`Trace file does not exist: ${tracePath}`)
@@ -171,7 +171,7 @@ function main(): void {
     (event) =>
       browserMainThreads.has(pidTidKey(event)) && eventDurationMs(event) >= longTaskThresholdMs,
   )
-  const tauUserTimingEvents = events.filter((event) => eventName(event).startsWith('tau:'))
+  const pettyUserTimingEvents = events.filter((event) => eventName(event).startsWith('petty:'))
 
   const summary = {
     tracePath,
@@ -191,9 +191,9 @@ function main(): void {
     ),
     topCategories: rankedCounts(categories, 12),
     topEvents: rankedCounts(eventNames, 12),
-    tauUserTimingCount: tauUserTimingEvents.length,
-    tauUserTimingNames: rankedCounts(
-      tauUserTimingEvents.reduce((map, event) => {
+    pettyUserTimingCount: pettyUserTimingEvents.length,
+    pettyUserTimingNames: rankedCounts(
+      pettyUserTimingEvents.reduce((map, event) => {
         increment(map, eventName(event))
         return map
       }, new Map<string, number>()),

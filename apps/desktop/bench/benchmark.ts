@@ -1,5 +1,5 @@
 /**
- * Tau Terminal — VT Parser Benchmark
+ * Petty Terminal — VT Parser Benchmark
  *
  * Compares ghostty-web (Ghostty WASM parser) vs @xterm/xterm (JS parser)
  * by feeding identical terminal data to both and measuring parse throughput.
@@ -76,11 +76,13 @@ function fmt(r: Result): string {
 }
 
 function ensureGhosttyWasm(): string {
-  if (process.env.TAU_GHOSTTY_WEB_WASM) {
-    if (!fs.existsSync(process.env.TAU_GHOSTTY_WEB_WASM)) {
-      throw new Error(`TAU_GHOSTTY_WEB_WASM does not exist: ${process.env.TAU_GHOSTTY_WEB_WASM}`)
+  if (process.env.PETTY_GHOSTTY_WEB_WASM) {
+    if (!fs.existsSync(process.env.PETTY_GHOSTTY_WEB_WASM)) {
+      throw new Error(
+        `PETTY_GHOSTTY_WEB_WASM does not exist: ${process.env.PETTY_GHOSTTY_WEB_WASM}`,
+      )
     }
-    return process.env.TAU_GHOSTTY_WEB_WASM
+    return process.env.PETTY_GHOSTTY_WEB_WASM
   }
 
   const localDependencyWasm = path.join(PROJECT_ROOT, 'node_modules/ghostty-web/ghostty-vt.wasm')
@@ -214,7 +216,7 @@ async function benchGhostty(data: Buffer, label: string): Promise<Result> {
 
 async function main() {
   console.log('╔══════════════════════════════════════════════════════════╗')
-  console.log('║     Tau Terminal — VT Parser Performance Benchmark      ║')
+  console.log('║     Petty Terminal — VT Parser Performance Benchmark      ║')
   console.log('╚══════════════════════════════════════════════════════════╝')
   console.log()
   console.log('Engine                    Duration   Throughput   Test')

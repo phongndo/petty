@@ -183,10 +183,10 @@ function validateWasm(bytes: Uint8Array): void {
   let scratch = 0
   let data = 0
   let imageInput = 0
-  const text = new TextEncoder().encode('Tau VT smoke')
+  const text = new TextEncoder().encode('Petty VT smoke')
   const imageSequence = new TextEncoder().encode('\x1b_Ga=T,f=32,s=1,v=1,i=1;/wAA/w==\x1b\\')
   try {
-    if (abi.ghostty_terminal_new(0, slot, 12, 3) !== 0)
+    if (abi.ghostty_terminal_new(0, slot, 14, 3) !== 0)
       throw new Error('Cannot open Ghostty terminal')
     terminal = abi.ghostty_wasm_take_opaque(slot)
     if (abi.ghostty_render_state_new(0, slot) !== 0) throw new Error('Cannot open render state')
@@ -251,7 +251,7 @@ function validateWasm(bytes: Uint8Array): void {
         }
       }
     }
-    if (rendered !== 'Tau VT smoke') throw new Error(`Unexpected Ghostty frame: ${rendered}`)
+    if (rendered !== 'Petty VT smoke') throw new Error(`Unexpected Ghostty frame: ${rendered}`)
     if (abi.ghostty_render_state_clean(state) !== 0) {
       throw new Error('Cannot clean Ghostty render state')
     }

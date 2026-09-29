@@ -1,5 +1,5 @@
 {
-  "name": "@tau/shared",
+  "name": "@petty/shared",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "./preferences": "./src/preferences.ts",
     "./session": "./src/session.ts",
     "./storage-path": "./src/storage-path.ts",
-    "./taud-protocol": "./src/taud-protocol.ts"
+    "./pettyd-protocol": "./src/pettyd-protocol.ts"
   },
   "scripts": {
     "tsc": "tsc --noEmit -p tsconfig.json",

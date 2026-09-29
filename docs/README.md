@@ -1,4 +1,4 @@
-# Tau documentation
+# Petty documentation
 
 Start with the [project overview](../README.md) for setup and scope, or [contributing](../CONTRIBUTING.md) for development checks. These notes describe implemented behavior; schemas and scripts remain the source of truth for exact fields and commands.
 
@@ -11,6 +11,6 @@ These are dated results, not current performance promises:
 
 - [Dependency upgrade](benchmarks/dependency-upgrade-2026-09-23.md) — compatibility decisions and bounded before/after observations.
 - [Output allocations](benchmarks/output-allocation-2026-09-23.md) — allocation counts, real-xterm workload, and packaged smoke results.
-- [Surface and transport efficiency](benchmarks/surface-transport-efficiency-2026-09-25.md) — Tau canvas/Ghostty surface, daemon output path and main parser before/after, with allocation evidence and validation gaps.
+- [Surface and transport efficiency](benchmarks/surface-transport-efficiency-2026-09-25.md) — Petty canvas/Ghostty surface, daemon output path and main parser before/after, with allocation evidence and validation gaps.
 
 The executable benchmark definitions and thresholds are in [package.json](../package.json) and [apps/desktop/package.json](../apps/desktop/package.json). Check the code and rerun a relevant benchmark before relying on an older result.

@@ -872,7 +872,7 @@ test "daemon restores persisted mux sessions from saved argv" {
             .status = "exited",
             .cols = 80,
             .rows = 24,
-            .event_log_path = "/tmp/tau-legacy-session/events.tauev",
+            .event_log_path = "/tmp/petty-legacy-session/events.pettyev",
             .last_seq = 0,
         });
     } else unreachable;

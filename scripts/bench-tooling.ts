@@ -44,7 +44,7 @@ if (!packageManager?.startsWith(`${manager}@`)) {
   )
 }
 const output = resolve(values.output)
-const scratch = mkdtempSync(join(tmpdir(), 'tau-tooling-bench-'))
+const scratch = mkdtempSync(join(tmpdir(), 'petty-tooling-bench-'))
 const installRoot = join(scratch, 'workspace')
 const cache = join(scratch, 'cache')
 
@@ -160,10 +160,10 @@ try {
           'Wall-clock process time; sequential commands; successful exits required.',
           'Install measurements use isolated manifest copies and private warmed caches; lifecycle scripts disabled; no cold-network claims.',
           'Other commands run in the supplied working tree with installed dependencies and warm compiler caches.',
-          'build includes the native Zig daemon; no TAUD_SKIP_NATIVE override is applied by this harness.',
+          'build includes the native Zig daemon; no PETTYD_SKIP_NATIVE override is applied by this harness.',
           'Test measurements use the explicit persistence suite, not automatic test discovery.',
         ],
-        skipNative: process.env.TAUD_SKIP_NATIVE === '1',
+        skipNative: process.env.PETTYD_SKIP_NATIVE === '1',
         packageManager,
         measurements,
       },

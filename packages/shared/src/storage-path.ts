@@ -1,4 +1,4 @@
-export type TauStoragePaths = {
+export type PettyStoragePaths = {
   readonly root: string
   readonly database: string
   readonly settings: string
@@ -21,20 +21,20 @@ function joinPath(...parts: string[]): string {
     .join('/')
 }
 
-export function resolveTauStoragePaths(homeDir: string): TauStoragePaths {
+export function resolvePettyStoragePaths(homeDir: string): PettyStoragePaths {
   const home = trimTrailingSlash(homeDir.trim())
-  const root = joinPath(home, '.tau')
+  const root = joinPath(home, '.petty')
   const run = joinPath(root, 'run')
   const sessions = joinPath(root, 'sessions')
 
   return {
     root,
-    database: joinPath(root, 'tau.db'),
+    database: joinPath(root, 'petty.db'),
     settings: joinPath(root, 'settings.json'),
     paneLayouts: joinPath(root, 'pane-layouts.json'),
     run,
-    socket: joinPath(run, 'taud.sock'),
-    pid: joinPath(run, 'taud.pid'),
+    socket: joinPath(run, 'pettyd.sock'),
+    pid: joinPath(run, 'pettyd.pid'),
     sessions,
     adapters: joinPath(root, 'adapters'),
   }

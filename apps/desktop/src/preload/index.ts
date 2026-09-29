@@ -3,12 +3,12 @@ import type {
   PtyClientMessage,
   PtyExitInfo,
   PtySize,
-  TaudPtyBridgeDiagnostics,
+  PettydPtyBridgeDiagnostics,
 } from '../main/pty-protocol'
 import type { PtyServiceMessage } from '../main/pty-protocol'
-import type { AppCommand } from '@tau/shared/app-command'
-import type { SettingsData } from '@tau/shared/session'
-import type { MuxGraphSnapshot } from '@tau/shared/mux-graph'
+import type { AppCommand } from '@petty/shared/app-command'
+import type { SettingsData } from '@petty/shared/session'
+import type { MuxGraphSnapshot } from '@petty/shared/mux-graph'
 import type {
   AttachSessionInput,
   AttachSessionMode,
@@ -18,9 +18,9 @@ import type {
   CurrentScreenSnapshotFrame,
   ExitInfo,
   OutputFrame,
-  TaudLifecycleDiagnostics,
-  TaudLifecycleRecoveryInput,
-} from '@tau/shared/taud-protocol'
+  PettydLifecycleDiagnostics,
+  PettydLifecycleRecoveryInput,
+} from '@petty/shared/pettyd-protocol'
 
 type PtyDataCallback = (data: string) => void
 
@@ -469,21 +469,21 @@ function assertMuxGraphSnapshot(value: unknown): MuxGraphSnapshot {
   return value as MuxGraphSnapshot
 }
 
-function assertLifecycleDiagnostics(value: unknown): TaudLifecycleDiagnostics {
+function assertLifecycleDiagnostics(value: unknown): PettydLifecycleDiagnostics {
   if (!isRecord(value) || typeof value.state !== 'string') {
-    throw new Error('Invalid taud diagnostics payload')
+    throw new Error('Invalid pettyd diagnostics payload')
   }
-  return value as TaudLifecycleDiagnostics
+  return value as PettydLifecycleDiagnostics
 }
 
-function assertBridgeDiagnostics(value: unknown): TaudPtyBridgeDiagnostics {
+function assertBridgeDiagnostics(value: unknown): PettydPtyBridgeDiagnostics {
   if (!isRecord(value) || typeof value.portConnected !== 'boolean') {
-    throw new Error('Invalid taud bridge diagnostics payload')
+    throw new Error('Invalid pettyd bridge diagnostics payload')
   }
-  return value as TaudPtyBridgeDiagnostics
+  return value as PettydPtyBridgeDiagnostics
 }
 
-const RECOVERY_ACTIONS = new Set<TaudLifecycleRecoveryInput>([
+const RECOVERY_ACTIONS = new Set<PettydLifecycleRecoveryInput>([
   'none',
   'start-daemon',
   'wait-for-start',
@@ -909,19 +909,21 @@ const electronAPI = {
     return getTerminalPreloadDiagnostics()
   },
 
-  async getTaudDiagnostics(): Promise<TaudLifecycleDiagnostics | null> {
-    const payload = await ipcRenderer.invoke('taud:getDiagnostics')
+  async getPettydDiagnostics(): Promise<PettydLifecycleDiagnostics | null> {
+    const payload = await ipcRenderer.invoke('pettyd:getDiagnostics')
     return payload === null ? null : assertLifecycleDiagnostics(payload)
   },
 
-  async getTaudPtyBridgeDiagnostics(): Promise<TaudPtyBridgeDiagnostics | null> {
-    const payload = await ipcRenderer.invoke('taud:getPtyBridgeDiagnostics')
+  async getPettydPtyBridgeDiagnostics(): Promise<PettydPtyBridgeDiagnostics | null> {
+    const payload = await ipcRenderer.invoke('pettyd:getPtyBridgeDiagnostics')
     return payload === null ? null : assertBridgeDiagnostics(payload)
   },
 
-  async recoverTaud(action: TaudLifecycleRecoveryInput): Promise<TaudLifecycleDiagnostics | null> {
-    if (!RECOVERY_ACTIONS.has(action)) throw new Error('Invalid taud recovery action')
-    const payload = await ipcRenderer.invoke('taud:recover', action)
+  async recoverPettyd(
+    action: PettydLifecycleRecoveryInput,
+  ): Promise<PettydLifecycleDiagnostics | null> {
+    if (!RECOVERY_ACTIONS.has(action)) throw new Error('Invalid pettyd recovery action')
+    const payload = await ipcRenderer.invoke('pettyd:recover', action)
     return payload === null ? null : assertLifecycleDiagnostics(payload)
   },
 

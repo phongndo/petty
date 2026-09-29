@@ -1,4 +1,4 @@
-const TRACE_PREFIX = 'tau:'
+const TRACE_PREFIX = 'petty:'
 const MAX_TRACE_ENTRIES = 128
 
 export type RendererTraceEntry = {
@@ -14,7 +14,7 @@ type RendererTraceApi = {
 
 declare global {
   interface Window {
-    __TAU_RENDERER_TRACE__?: RendererTraceApi
+    __PETTY_RENDERER_TRACE__?: RendererTraceApi
   }
 }
 
@@ -67,7 +67,7 @@ export function rendererTraceEntries(): RendererTraceEntry[] {
 }
 
 if (typeof window !== 'undefined') {
-  window.__TAU_RENDERER_TRACE__ = {
+  window.__PETTY_RENDERER_TRACE__ = {
     entries: rendererTraceEntries,
   }
 }

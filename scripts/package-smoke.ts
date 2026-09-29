@@ -11,7 +11,7 @@ const desktopRoot = resolve(repoRoot, 'apps/desktop')
 const require = createRequire(resolve(desktopRoot, 'package.json'))
 const electronPath = require('electron') as string
 const outRoot = resolve(desktopRoot, 'out')
-const taudPath = resolve(outRoot, 'bin', process.platform === 'win32' ? 'taud.exe' : 'taud')
+const pettydPath = resolve(outRoot, 'bin', process.platform === 'win32' ? 'pettyd.exe' : 'pettyd')
 
 function positiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name]
@@ -28,13 +28,13 @@ function nonNegativeIntEnv(name: string, fallback: number): number {
 }
 
 const ELECTRON_SMOKE_PROCESS_TIMEOUT_MS = positiveIntEnv(
-  'TAU_ELECTRON_SMOKE_PROCESS_TIMEOUT_MS',
+  'PETTY_ELECTRON_SMOKE_PROCESS_TIMEOUT_MS',
   20_000,
 )
-const ELECTRON_SMOKE_MAX_LAUNCH_MS = nonNegativeIntEnv('TAU_ELECTRON_SMOKE_MAX_LAUNCH_MS', 0)
+const ELECTRON_SMOKE_MAX_LAUNCH_MS = nonNegativeIntEnv('PETTY_ELECTRON_SMOKE_MAX_LAUNCH_MS', 0)
 const ELECTRON_SMOKE_PROGRESS_TIMEOUT_MS = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_PROGRESS_TIMEOUT_MS',
-  process.env.TAU_ELECTRON_SMOKE_RELOAD_DURATION_MS ? 180_000 : 0,
+  'PETTY_ELECTRON_SMOKE_PROGRESS_TIMEOUT_MS',
+  process.env.PETTY_ELECTRON_SMOKE_RELOAD_DURATION_MS ? 180_000 : 0,
 )
 
 function fail(message: string): never {
@@ -66,13 +66,13 @@ function assertPackageLayout(): void {
   assertFile(resolve(outRoot, 'main/index.js'), 'main bundle')
   assertFile(resolve(outRoot, 'preload/index.cjs'), 'preload bundle')
   assertFile(resolve(outRoot, 'renderer/index.html'), 'renderer entrypoint')
-  assertExecutable(taudPath, 'taud binary')
+  assertExecutable(pettydPath, 'pettyd binary')
 }
 
-function runTaudCheck(): void {
-  const home = mkdtempSync(resolve(tmpdir(), 'tau-package-smoke-'))
+function runPettydCheck(): void {
+  const home = mkdtempSync(resolve(tmpdir(), 'petty-package-smoke-'))
   try {
-    const result = spawnSync(taudPath, ['--check'], {
+    const result = spawnSync(pettydPath, ['--check'], {
       cwd: desktopRoot,
       env: {
         ...process.env,
@@ -83,12 +83,12 @@ function runTaudCheck(): void {
       timeout: 5000,
     })
 
-    if (result.error) fail(`taud --check failed to start: ${result.error.message}`)
+    if (result.error) fail(`pettyd --check failed to start: ${result.error.message}`)
     if (result.status !== 0) {
       const stderr = result.stderr.trim()
       const stdout = result.stdout.trim()
       fail(
-        `taud --check exited with ${result.status}${stderr ? `\nstderr:\n${stderr}` : ''}${
+        `pettyd --check exited with ${result.status}${stderr ? `\nstderr:\n${stderr}` : ''}${
           stdout ? `\nstdout:\n${stdout}` : ''
         }`,
       )
@@ -118,7 +118,7 @@ function killProcessTree(pid: number, signal: NodeJS.Signals): void {
 }
 
 function runElectronLaunchSmoke(): Promise<void> {
-  const home = mkdtempSync(resolve(tmpdir(), 'tau-electron-smoke-'))
+  const home = mkdtempSync(resolve(tmpdir(), 'petty-electron-smoke-'))
   return new Promise((resolveSmoke, rejectSmoke) => {
     let stdout = ''
     let stderr = ''
@@ -133,7 +133,7 @@ function runElectronLaunchSmoke(): Promise<void> {
       env: {
         ...process.env,
         HOME: home,
-        TAU_ELECTRON_SMOKE: '1',
+        PETTY_ELECTRON_SMOKE: '1',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -234,18 +234,18 @@ function runElectronLaunchSmoke(): Promise<void> {
   })
 }
 
-if (process.env.TAUD_SKIP_NATIVE === '1') {
-  fail('TAUD_SKIP_NATIVE=1 cannot produce a package with taud; do not publish this artifact')
+if (process.env.PETTYD_SKIP_NATIVE === '1') {
+  fail('PETTYD_SKIP_NATIVE=1 cannot produce a package with pettyd; do not publish this artifact')
 }
 if (process.platform === 'win32') {
-  fail('Windows package smoke is unsupported while taud is POSIX-only')
+  fail('Windows package smoke is unsupported while pettyd is POSIX-only')
 }
 
 assertPackageLayout()
-runTaudCheck()
+runPettydCheck()
 runElectronLaunchSmoke()
   .then(() => {
-    console.log('[package-smoke] packaged taud and Electron launch passed smoke checks')
+    console.log('[package-smoke] packaged pettyd and Electron launch passed smoke checks')
   })
   .catch((error: unknown) => {
     fail(error instanceof Error ? error.message : String(error))

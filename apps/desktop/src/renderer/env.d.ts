@@ -3,10 +3,10 @@
  * These types describe the API exposed by the preload script via contextBridge.
  */
 
-import type { AppCommand } from '@tau/shared/app-command'
-import type { TaudPtyBridgeDiagnostics } from '../main/pty-protocol'
-import type { SettingsData } from '@tau/shared/session'
-import type { MuxGraphSnapshot } from '@tau/shared/mux-graph'
+import type { AppCommand } from '@petty/shared/app-command'
+import type { PettydPtyBridgeDiagnostics } from '../main/pty-protocol'
+import type { SettingsData } from '@petty/shared/session'
+import type { MuxGraphSnapshot } from '@petty/shared/mux-graph'
 import type {
   AttachSessionInput,
   AttachSessionResult,
@@ -15,9 +15,9 @@ import type {
   CurrentScreenSnapshotFrame,
   ExitInfo,
   OutputFrame,
-  TaudLifecycleDiagnostics,
-  TaudLifecycleRecoveryInput,
-} from '@tau/shared/taud-protocol'
+  PettydLifecycleDiagnostics,
+  PettydLifecycleRecoveryInput,
+} from '@petty/shared/pettyd-protocol'
 
 type TerminalPreloadDiagnostics = {
   pendingClientMessages: number
@@ -80,9 +80,9 @@ export interface ElectronAPI {
   signalReady(): Promise<void>
   onAppCommand(callback: (command: AppCommand) => void): () => void
   getTerminalPreloadDiagnostics(): TerminalPreloadDiagnostics
-  getTaudDiagnostics(): Promise<TaudLifecycleDiagnostics | null>
-  getTaudPtyBridgeDiagnostics(): Promise<TaudPtyBridgeDiagnostics | null>
-  recoverTaud(action: TaudLifecycleRecoveryInput): Promise<TaudLifecycleDiagnostics | null>
+  getPettydDiagnostics(): Promise<PettydLifecycleDiagnostics | null>
+  getPettydPtyBridgeDiagnostics(): Promise<PettydPtyBridgeDiagnostics | null>
+  recoverPettyd(action: PettydLifecycleRecoveryInput): Promise<PettydLifecycleDiagnostics | null>
   getMuxGraph(): Promise<MuxGraphSnapshot>
   replaceMuxGraph(snapshot: MuxGraphSnapshot, expectedRev: number): Promise<MuxGraphSnapshot>
   waitMuxGraph(afterEventSeq: number): Promise<MuxGraphSnapshot>

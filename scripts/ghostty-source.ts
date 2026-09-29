@@ -4,11 +4,11 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-// Both the daemon's native C ABI and the Tau-owned browser WASM use this exact source.
+// Both the daemon's native C ABI and the Petty-owned browser WASM use this exact source.
 export const GHOSTTY_REVISION = '622b4eecd7d2ce1a10930537c17f0d61abdba817'
 // Bump when the WASM-only browser graphics patch or build options change; do not reuse an
 // older, revision-matching artifact that lacks Kitty exports or traps when images arrive.
-export const GHOSTTY_WEB_ARTIFACT_ID = `${GHOSTTY_REVISION}/tau-browser-graphics-v1`
+export const GHOSTTY_WEB_ARTIFACT_ID = `${GHOSTTY_REVISION}/petty-browser-graphics-v1`
 const ARCHIVE_SHA256 = '762d7bf7778a5590dee92501e9c246f758b54925401ca6c5f72838009b1379ff'
 
 export function withGhosttySource<T>(build: (source: string) => T): T {
@@ -16,7 +16,7 @@ export function withGhosttySource<T>(build: (source: string) => T): T {
   if (version !== '0.16.0') {
     throw new Error(`Ghostty ${GHOSTTY_REVISION} requires Zig 0.16.0; found ${version}`)
   }
-  const work = mkdtempSync(join(tmpdir(), 'tau-ghostty-vt-'))
+  const work = mkdtempSync(join(tmpdir(), 'petty-ghostty-vt-'))
   try {
     const archive = join(work, 'ghostty.tar.gz')
     execFileSync(

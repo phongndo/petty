@@ -1,4 +1,4 @@
-import { TauTerminal } from '../src/renderer/tau-terminal'
+import { PettyTerminal } from '../src/renderer/petty-terminal'
 
 // Export to the classic script served by the Electron surface smoke harness.
-Object.assign(window, { TauSurfaceTest: { TauTerminal } })
+Object.assign(window, { PettySurfaceTest: { PettyTerminal } })

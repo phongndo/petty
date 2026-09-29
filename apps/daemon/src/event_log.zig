@@ -3,13 +3,13 @@ const limits = @import("limits.zig");
 
 const assert = std.debug.assert;
 
-pub const file_magic = [_]u8{ 0x54, 0x41, 0x55, 0x45, 0x56, 0x00, 0x01, 0x00 }; // TAUEV\0\1\0
+pub const file_magic = [_]u8{ 0x50, 0x45, 0x54, 0x45, 0x56, 0x00, 0x01, 0x00 }; // PETEV\0\1\0
 const legacy_file_magic = [_]u8{ 0x54, 0x41, 0x4f, 0x45, 0x56, 0x00, 0x01, 0x00 }; // TAOEV\0\1\0
-const file_name = "events.tauev";
+const file_name = "events.pettyev";
 const legacy_file_name = "events.taoev";
 pub const session_id_header_size: usize = 36;
 pub const file_header_size: usize = file_magic.len + session_id_header_size + 8;
-pub const frame_magic: u32 = 0x54414546; // TAEF
+pub const frame_magic: u32 = 0x50544546; // PTEF
 pub const frame_header_size: usize = 32;
 pub const max_payload_bytes: u32 = limits.event_log_payload_bytes_max;
 pub const max_replay_bytes: usize = limits.event_log_replay_bytes_max;
@@ -1012,7 +1012,7 @@ test "event log durable append failure does not advance sequence" {
 
     const missing_path = try std.fmt.allocPrint(
         std.testing.allocator,
-        ".zig-cache/tmp/{s}/missing/events.tauev",
+        ".zig-cache/tmp/{s}/missing/events.pettyev",
         .{tmp.sub_path},
     );
     defer std.testing.allocator.free(missing_path);

@@ -1,5 +1,5 @@
 /**
- * Tau — Electron Performance Research & Implementation
+ * Petty — Electron Performance Research & Implementation
  *
  * Electron desktop runtime on macOS arm64.
  *
@@ -9,7 +9,7 @@
  * TL;DR improvements applied:
  *   - GPU rasterization + zero-copy (canvas rendering)
  *   - V8 heap limit tuned for terminal workloads
- *   - PTY isolated in taud with direct MessagePort IPC to the renderer bridge
+ *   - PTY isolated in pettyd with direct MessagePort IPC to the renderer bridge
  *   - Renderer process limit = 1 (single window app)
  *   - Disabled unused Chromium features (~15 services)
  *   - Canvas compositor layer promotion
@@ -37,20 +37,20 @@ const {
   shell,
 } = electronApi
 import { disposeMainRuntime } from './runtime'
-import { defaultSettings, resolveSettings, validateSettings } from '@tau/shared/preferences'
+import { defaultSettings, resolveSettings, validateSettings } from '@petty/shared/preferences'
 import { conflictingShortcut, findShortcut } from './shortcuts'
 import { readSettings, writeSettings } from './settings-store'
-import { TaudPtyBridge } from './taud-pty-bridge'
-import { TaudClient } from './taud-client'
+import { PettydPtyBridge } from './pettyd-pty-bridge'
+import { PettydClient } from './pettyd-client'
 import { observeSmokeOutput } from './smoke-output'
-import type { AppCommand, PaneFocusDirection } from '@tau/shared/app-command'
-import { SettingsDataSchema, type SettingsData } from '@tau/shared/session'
-import { MuxGraphSnapshotSchema, type MuxGraphSnapshot } from '@tau/shared/mux-graph'
-import type { TaudMuxGraphState } from './taud-client'
+import type { AppCommand, PaneFocusDirection } from '@petty/shared/app-command'
+import { SettingsDataSchema, type SettingsData } from '@petty/shared/session'
+import { MuxGraphSnapshotSchema, type MuxGraphSnapshot } from '@petty/shared/mux-graph'
+import type { PettydMuxGraphState } from './pettyd-client'
 import {
-  TaudLifecycleRecoveryInputSchema,
-  type TaudLifecycleRecoveryInput,
-} from '@tau/shared/taud-protocol'
+  PettydLifecycleRecoveryInputSchema,
+  type PettydLifecycleRecoveryInput,
+} from '@petty/shared/pettyd-protocol'
 
 function errorMessageFromUnknown(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -60,7 +60,7 @@ const execFileAsync = promisify(execFile)
 
 // ─── Phase 0: Chromium flags (MUST be set before app.ready) ───
 
-// Tau's mux kernel stores no credentials. Prevent Chromium/Electron from touching the OS
+// Petty's mux kernel stores no credentials. Prevent Chromium/Electron from touching the OS
 // keychain merely to initialize encrypted web storage. Revisit only with explicit secrets UI.
 if (process.platform === 'darwin') app.commandLine.appendSwitch('use-mock-keychain')
 if (process.platform === 'linux') app.commandLine.appendSwitch('password-store', 'basic')
@@ -75,7 +75,7 @@ app.commandLine.appendSwitch('enable-native-gpu-memory-buffers')
 // Leave Chromium's software rasterizer fallback available on machines
 // without a working hardware context.
 
-// Keep the accelerated 2D canvas path available for Tau's terminal surface.
+// Keep the accelerated 2D canvas path available for Petty's terminal surface.
 app.commandLine.appendSwitch('enable-accelerated-2d-canvas')
 
 // Disable unused Chromium features to reduce memory footprint
@@ -108,7 +108,7 @@ function decodeMuxGraphSnapshot(data: unknown): MuxGraphSnapshot {
   return decoded.value
 }
 
-function decodeTaudMuxGraph(state: TaudMuxGraphState): MuxGraphSnapshot {
+function decodePettydMuxGraph(state: PettydMuxGraphState): MuxGraphSnapshot {
   const payload = JSON.parse(state.snapshotJson) as Record<string, unknown>
   return decodeMuxGraphSnapshot({
     ...payload,
@@ -153,15 +153,15 @@ app.commandLine.appendSwitch('renderer-process-limit', '1')
 
 let mainWindow: BrowserWindowInstance | null = null
 let mainWindowLoadPromise: Promise<void> | null = null
-let taudBridge: TaudPtyBridge | null = null
-let taudClient: TaudClient | null = null
+let pettydBridge: PettydPtyBridge | null = null
+let pettydClient: PettydClient | null = null
 let currentSettings: SettingsData = defaultSettings
 let capturingShortcut = false
 
 // ─── Application Icon ───
 
 function appIconFileName(): string {
-  return nativeTheme.shouldUseDarkColors ? 'tau-icon-dark.png' : 'tau-icon-light.png'
+  return nativeTheme.shouldUseDarkColors ? 'petty-icon-dark.png' : 'petty-icon-light.png'
 }
 
 function resolveAppIconPath(): string | null {
@@ -324,32 +324,32 @@ async function sendPtyPortToRenderer() {
   if (!mainWindow || mainWindow.isDestroyed()) return
 
   try {
-    const bridge = ensureTaudBridge()
+    const bridge = ensurePettydBridge()
     await bridge.ensureReady()
 
     const { port1, port2 } = new MessageChannelMain()
     bridge.connectPort(port1)
     mainWindow.webContents.postMessage('pty:port', null, [port2])
   } catch (err) {
-    console.warn(`[main] Tau daemon unavailable: ${errorMessageFromUnknown(err)}`)
+    console.warn(`[main] Petty daemon unavailable: ${errorMessageFromUnknown(err)}`)
   }
 }
 
-function ensureTaudBridge(): TaudPtyBridge {
-  taudBridge ??= new TaudPtyBridge({ client: ensureTaudClient() })
-  return taudBridge
+function ensurePettydBridge(): PettydPtyBridge {
+  pettydBridge ??= new PettydPtyBridge({ client: ensurePettydClient() })
+  return pettydBridge
 }
 
-function ensureTaudClient(): TaudClient {
-  taudClient ??= new TaudClient({ detachDaemon: !isElectronSmoke() })
-  return taudClient
+function ensurePettydClient(): PettydClient {
+  pettydClient ??= new PettydClient({ detachDaemon: !isElectronSmoke() })
+  return pettydClient
 }
 
 async function disposeSessionBackends(): Promise<void> {
-  taudBridge?.dispose()
-  taudBridge = null
-  const client = taudClient
-  taudClient = null
+  pettydBridge?.dispose()
+  pettydBridge = null
+  const client = pettydClient
+  pettydClient = null
   await client?.dispose()
 }
 
@@ -386,7 +386,7 @@ ipcMain.on('pty:requestSessionPort', (event, sessionId: unknown) => {
   if (event.sender !== mainWindow?.webContents) return
   if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 128) return
   void (async () => {
-    const bridge = ensureTaudBridge()
+    const bridge = ensurePettydBridge()
     await bridge.ensureReady()
     if (!mainWindow || mainWindow.isDestroyed()) return
     const { port1, port2 } = new MessageChannelMain()
@@ -399,7 +399,7 @@ ipcMain.on('pty:requestSessionPort', (event, sessionId: unknown) => {
 
 ipcMain.handle('mux-graph:get', async (event) => {
   if (event.sender !== mainWindow?.webContents) return null
-  return decodeTaudMuxGraph(await ensureTaudClient().getMuxGraph())
+  return decodePettydMuxGraph(await ensurePettydClient().getMuxGraph())
 })
 
 ipcMain.handle('mux-graph:replace', async (event, data: unknown, expectedRev: unknown) => {
@@ -408,8 +408,8 @@ ipcMain.handle('mux-graph:replace', async (event, data: unknown, expectedRev: un
     throw new Error('Invalid expected mux graph revision')
   }
   const snapshot = decodeMuxGraphSnapshot(data)
-  return decodeTaudMuxGraph(
-    await ensureTaudClient().replaceMuxGraph(JSON.stringify(snapshot), expectedRev as number),
+  return decodePettydMuxGraph(
+    await ensurePettydClient().replaceMuxGraph(JSON.stringify(snapshot), expectedRev as number),
   )
 })
 
@@ -418,7 +418,7 @@ ipcMain.handle('mux-graph:wait', async (event, afterEventSeq: unknown) => {
   if (!Number.isSafeInteger(afterEventSeq) || (afterEventSeq as number) < 0) {
     throw new Error('Invalid mux graph event sequence')
   }
-  return decodeTaudMuxGraph(await ensureTaudClient().waitForMuxGraph(afterEventSeq as number))
+  return decodePettydMuxGraph(await ensurePettydClient().waitForMuxGraph(afterEventSeq as number))
 })
 
 ipcMain.on('settings:capture', (event, active: unknown) => {
@@ -437,25 +437,25 @@ ipcMain.handle('settings:write', async (event, data: unknown) => {
   const settings = decodeSettingsData(data)
   await writeSettings(settings)
   currentSettings = settings
-  await taudBridge?.syncPersistenceSettings(settings)
+  await pettydBridge?.syncPersistenceSettings(settings)
 })
 
-ipcMain.handle('taud:getDiagnostics', async (event) => {
+ipcMain.handle('pettyd:getDiagnostics', async (event) => {
   if (event.sender !== mainWindow?.webContents) return null
-  return (await taudClient?.refreshLifecycleDiagnostics()) ?? null
+  return (await pettydClient?.refreshLifecycleDiagnostics()) ?? null
 })
 
-ipcMain.handle('taud:getPtyBridgeDiagnostics', (event) => {
+ipcMain.handle('pettyd:getPtyBridgeDiagnostics', (event) => {
   if (event.sender !== mainWindow?.webContents) return null
-  return taudBridge?.getDiagnostics() ?? null
+  return pettydBridge?.getDiagnostics() ?? null
 })
 
-ipcMain.handle('taud:recover', async (event, input: unknown) => {
+ipcMain.handle('pettyd:recover', async (event, input: unknown) => {
   if (event.sender !== mainWindow?.webContents) return null
   const action = Schema.decodeUnknownSync(
-    TaudLifecycleRecoveryInputSchema as unknown as Schema.Decoder<unknown>,
-  )(input) as TaudLifecycleRecoveryInput
-  return await ensureTaudClient().applyLifecycleRecovery(action)
+    PettydLifecycleRecoveryInputSchema as unknown as Schema.Decoder<unknown>,
+  )(input) as PettydLifecycleRecoveryInput
+  return await ensurePettydClient().applyLifecycleRecovery(action)
 })
 
 // ─── App Lifecycle ───
@@ -474,90 +474,96 @@ function nonNegativeIntEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
 }
 
-const ELECTRON_SMOKE_TIMEOUT_MS = positiveIntEnv('TAU_ELECTRON_SMOKE_TIMEOUT_MS', 15_000)
-const ELECTRON_SMOKE_OUTPUT_BYTES = positiveIntEnv('TAU_ELECTRON_SMOKE_OUTPUT_BYTES', 16 * 1024)
+const ELECTRON_SMOKE_TIMEOUT_MS = positiveIntEnv('PETTY_ELECTRON_SMOKE_TIMEOUT_MS', 15_000)
+const ELECTRON_SMOKE_OUTPUT_BYTES = positiveIntEnv('PETTY_ELECTRON_SMOKE_OUTPUT_BYTES', 16 * 1024)
 const ELECTRON_SMOKE_OUTPUT_TIMEOUT_MS = positiveIntEnv(
-  'TAU_ELECTRON_SMOKE_OUTPUT_TIMEOUT_MS',
+  'PETTY_ELECTRON_SMOKE_OUTPUT_TIMEOUT_MS',
   10_000,
 )
 const ELECTRON_SMOKE_OUTPUT_START_DELAY_MS = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_OUTPUT_START_DELAY_MS',
+  'PETTY_ELECTRON_SMOKE_OUTPUT_START_DELAY_MS',
   0,
 )
 const ELECTRON_SMOKE_MIN_THROUGHPUT_BYTES_PER_SEC = positiveIntEnv(
-  'TAU_ELECTRON_SMOKE_MIN_THROUGHPUT_BYTES_PER_SEC',
+  'PETTY_ELECTRON_SMOKE_MIN_THROUGHPUT_BYTES_PER_SEC',
   4 * 1024,
 )
 const ELECTRON_SMOKE_MAX_PENDING_OUTPUT_BYTES = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_MAX_PENDING_OUTPUT_BYTES',
+  'PETTY_ELECTRON_SMOKE_MAX_PENDING_OUTPUT_BYTES',
   1024 * 1024,
 )
-const ELECTRON_SMOKE_MAX_TAUD_RSS_GROWTH_KB = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_MAX_TAUD_RSS_GROWTH_KB',
+const ELECTRON_SMOKE_MAX_PETTYD_RSS_GROWTH_KB = nonNegativeIntEnv(
+  'PETTY_ELECTRON_SMOKE_MAX_PETTYD_RSS_GROWTH_KB',
   0,
 )
-const ELECTRON_SMOKE_MAX_TAUD_RSS_KB = nonNegativeIntEnv('TAU_ELECTRON_SMOKE_MAX_TAUD_RSS_KB', 0)
+const ELECTRON_SMOKE_MAX_PETTYD_RSS_KB = nonNegativeIntEnv(
+  'PETTY_ELECTRON_SMOKE_MAX_PETTYD_RSS_KB',
+  0,
+)
 const ELECTRON_SMOKE_MAX_RENDERER_LOAD_MS = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_MAX_RENDERER_LOAD_MS',
+  'PETTY_ELECTRON_SMOKE_MAX_RENDERER_LOAD_MS',
   0,
 )
 const ELECTRON_SMOKE_MAX_FIRST_OUTPUT_MS = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_MAX_FIRST_OUTPUT_MS',
+  'PETTY_ELECTRON_SMOKE_MAX_FIRST_OUTPUT_MS',
   0,
 )
-const ELECTRON_SMOKE_MAX_TOTAL_MS = nonNegativeIntEnv('TAU_ELECTRON_SMOKE_MAX_TOTAL_MS', 0)
+const ELECTRON_SMOKE_MAX_TOTAL_MS = nonNegativeIntEnv('PETTY_ELECTRON_SMOKE_MAX_TOTAL_MS', 0)
 const ELECTRON_SMOKE_MAX_INPUT_ECHO_MS = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_MAX_INPUT_ECHO_MS',
+  'PETTY_ELECTRON_SMOKE_MAX_INPUT_ECHO_MS',
   0,
 )
-const ELECTRON_SMOKE_RELOAD = process.env.TAU_ELECTRON_SMOKE_RELOAD === '1'
-const ELECTRON_SMOKE_RELOAD_SESSION_COUNT = positiveIntEnv('TAU_ELECTRON_SMOKE_RELOAD_SESSIONS', 1)
-const ELECTRON_SMOKE_RELOAD_CYCLES = positiveIntEnv('TAU_ELECTRON_SMOKE_RELOAD_CYCLES', 1)
+const ELECTRON_SMOKE_RELOAD = process.env.PETTY_ELECTRON_SMOKE_RELOAD === '1'
+const ELECTRON_SMOKE_RELOAD_SESSION_COUNT = positiveIntEnv(
+  'PETTY_ELECTRON_SMOKE_RELOAD_SESSIONS',
+  1,
+)
+const ELECTRON_SMOKE_RELOAD_CYCLES = positiveIntEnv('PETTY_ELECTRON_SMOKE_RELOAD_CYCLES', 1)
 const ELECTRON_SMOKE_RELOAD_DURATION_MS = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_RELOAD_DURATION_MS',
+  'PETTY_ELECTRON_SMOKE_RELOAD_DURATION_MS',
   0,
 )
 const ELECTRON_SMOKE_RELOAD_INTERVAL_MS = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_RELOAD_INTERVAL_MS',
+  'PETTY_ELECTRON_SMOKE_RELOAD_INTERVAL_MS',
   0,
 )
 const ELECTRON_SMOKE_PROGRESS_INTERVAL_MS = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_PROGRESS_INTERVAL_MS',
+  'PETTY_ELECTRON_SMOKE_PROGRESS_INTERVAL_MS',
   ELECTRON_SMOKE_RELOAD_DURATION_MS > 0 ? 60_000 : 0,
 )
-const ELECTRON_SMOKE_MAX_RELOAD_MS = nonNegativeIntEnv('TAU_ELECTRON_SMOKE_MAX_RELOAD_MS', 0)
+const ELECTRON_SMOKE_MAX_RELOAD_MS = nonNegativeIntEnv('PETTY_ELECTRON_SMOKE_MAX_RELOAD_MS', 0)
 const ELECTRON_SMOKE_MAX_RELOAD_ATTACH_MS = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_MAX_RELOAD_ATTACH_MS',
+  'PETTY_ELECTRON_SMOKE_MAX_RELOAD_ATTACH_MS',
   0,
 )
 const ELECTRON_SMOKE_MAX_RELOAD_ECHO_MS = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_MAX_RELOAD_ECHO_MS',
+  'PETTY_ELECTRON_SMOKE_MAX_RELOAD_ECHO_MS',
   0,
 )
 const ELECTRON_SMOKE_MAX_MAIN_RSS_GROWTH_KB = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_MAX_MAIN_RSS_GROWTH_KB',
+  'PETTY_ELECTRON_SMOKE_MAX_MAIN_RSS_GROWTH_KB',
   0,
 )
 const ELECTRON_SMOKE_MAX_RENDERER_RSS_GROWTH_KB = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_MAX_RENDERER_RSS_GROWTH_KB',
+  'PETTY_ELECTRON_SMOKE_MAX_RENDERER_RSS_GROWTH_KB',
   0,
 )
-const ELECTRON_SMOKE_MAX_MAIN_RSS_KB = nonNegativeIntEnv('TAU_ELECTRON_SMOKE_MAX_MAIN_RSS_KB', 0)
+const ELECTRON_SMOKE_MAX_MAIN_RSS_KB = nonNegativeIntEnv('PETTY_ELECTRON_SMOKE_MAX_MAIN_RSS_KB', 0)
 const ELECTRON_SMOKE_MAX_RENDERER_RSS_KB = nonNegativeIntEnv(
-  'TAU_ELECTRON_SMOKE_MAX_RENDERER_RSS_KB',
+  'PETTY_ELECTRON_SMOKE_MAX_RENDERER_RSS_KB',
   0,
 )
-const ELECTRON_SMOKE_TRACE = process.env.TAU_ELECTRON_SMOKE_TRACE === '1'
+const ELECTRON_SMOKE_TRACE = process.env.PETTY_ELECTRON_SMOKE_TRACE === '1'
 const ELECTRON_SMOKE_TRACE_PATH =
-  process.env.TAU_ELECTRON_SMOKE_TRACE_PATH ||
+  process.env.PETTY_ELECTRON_SMOKE_TRACE_PATH ||
   join(process.cwd(), 'out/bench/electron-smoke-trace.json')
-const ELECTRON_SMOKE_TRACE_MEMORY = process.env.TAU_ELECTRON_SMOKE_TRACE_MEMORY === '1'
+const ELECTRON_SMOKE_TRACE_MEMORY = process.env.PETTY_ELECTRON_SMOKE_TRACE_MEMORY === '1'
 const ELECTRON_SMOKE_TRACE_BUFFER_KB = positiveIntEnv(
-  'TAU_ELECTRON_SMOKE_TRACE_BUFFER_KB',
+  'PETTY_ELECTRON_SMOKE_TRACE_BUFFER_KB',
   128 * 1024,
 )
 const ELECTRON_SMOKE_TRACE_CATEGORIES = (
-  process.env.TAU_ELECTRON_SMOKE_TRACE_CATEGORIES ||
+  process.env.PETTY_ELECTRON_SMOKE_TRACE_CATEGORIES ||
   [
     'electron',
     'devtools.timeline',
@@ -575,7 +581,7 @@ const ELECTRON_SMOKE_TRACE_CATEGORIES = (
   .filter(Boolean)
 
 function isElectronSmoke(): boolean {
-  return process.env.TAU_ELECTRON_SMOKE === '1'
+  return process.env.PETTY_ELECTRON_SMOKE === '1'
 }
 
 type ElectronSmokeTraceResult = {
@@ -703,15 +709,15 @@ while time.time() < deadline:
             fn(value)
           }
           const timeout = setTimeout(async () => {
-            const [taud, bridge] = await Promise.all([
-              api.getTaudDiagnostics().catch(() => null),
-              api.getTaudPtyBridgeDiagnostics().catch(() => null),
+            const [pettyd, bridge] = await Promise.all([
+              api.getPettydDiagnostics().catch(() => null),
+              api.getPettydPtyBridgeDiagnostics().catch(() => null),
             ])
             settle(
               reject,
               new Error(
                 'Timed out waiting for smoke terminal throughput output: ' +
-                  JSON.stringify({ sawToken, receivedBytes, inputSent, inputEchoMs, taud, bridge }),
+                  JSON.stringify({ sawToken, receivedBytes, inputSent, inputEchoMs, pettyd, bridge }),
               ),
             )
           }, ${ELECTRON_SMOKE_OUTPUT_TIMEOUT_MS})
@@ -790,82 +796,82 @@ while time.time() < deadline:
         ) {
           throw new Error('Smoke lost preload terminal output before subscription: ' + JSON.stringify(diagnostics))
         }
-        const taudDiagnostics = await api.getTaudDiagnostics()
-        if (!taudDiagnostics || !taudDiagnostics.state.endsWith('-live')) {
-          throw new Error('Smoke taud diagnostics were not live: ' + JSON.stringify(taudDiagnostics))
+        const pettydDiagnostics = await api.getPettydDiagnostics()
+        if (!pettydDiagnostics || !pettydDiagnostics.state.endsWith('-live')) {
+          throw new Error('Smoke pettyd diagnostics were not live: ' + JSON.stringify(pettydDiagnostics))
         }
         if (
-          typeof taudDiagnostics.daemonOwnership !== 'string' ||
-          typeof taudDiagnostics.recoveryAction !== 'string'
+          typeof pettydDiagnostics.daemonOwnership !== 'string' ||
+          typeof pettydDiagnostics.recoveryAction !== 'string'
         ) {
-          throw new Error('Smoke taud diagnostics did not include recovery policy: ' + JSON.stringify(taudDiagnostics))
+          throw new Error('Smoke pettyd diagnostics did not include recovery policy: ' + JSON.stringify(pettydDiagnostics))
         }
-        if (taudDiagnostics.controlRequestCount === 0 || !taudDiagnostics.lastControlRequest) {
-          throw new Error('Smoke taud diagnostics did not record control requests')
+        if (pettydDiagnostics.controlRequestCount === 0 || !pettydDiagnostics.lastControlRequest) {
+          throw new Error('Smoke pettyd diagnostics did not record control requests')
         }
         if (
-          !taudDiagnostics.timing ||
-          typeof taudDiagnostics.timing.lastPingDurationMs !== 'number' ||
-          typeof taudDiagnostics.timing.lastTransitionAt !== 'number'
+          !pettydDiagnostics.timing ||
+          typeof pettydDiagnostics.timing.lastPingDurationMs !== 'number' ||
+          typeof pettydDiagnostics.timing.lastTransitionAt !== 'number'
         ) {
-          throw new Error('Smoke taud diagnostics did not include lifecycle timing')
+          throw new Error('Smoke pettyd diagnostics did not include lifecycle timing')
         }
-        if (!taudDiagnostics.streamDiagnostics) {
-          throw new Error('Smoke taud diagnostics did not include stream diagnostics')
+        if (!pettydDiagnostics.streamDiagnostics) {
+          throw new Error('Smoke pettyd diagnostics did not include stream diagnostics')
         }
         if (
-          !taudDiagnostics.daemonControlDiagnostics ||
-          taudDiagnostics.daemonControlDiagnostics.requestCount === 0 ||
-          !taudDiagnostics.daemonControlDiagnostics.lastRequestType ||
-          !taudDiagnostics.daemonControlDiagnostics.lastTraceId
+          !pettydDiagnostics.daemonControlDiagnostics ||
+          pettydDiagnostics.daemonControlDiagnostics.requestCount === 0 ||
+          !pettydDiagnostics.daemonControlDiagnostics.lastRequestType ||
+          !pettydDiagnostics.daemonControlDiagnostics.lastTraceId
         ) {
           throw new Error(
-            'Smoke taud diagnostics did not include daemon control trace diagnostics: ' +
-              JSON.stringify(taudDiagnostics.daemonControlDiagnostics),
+            'Smoke pettyd diagnostics did not include daemon control trace diagnostics: ' +
+              JSON.stringify(pettydDiagnostics.daemonControlDiagnostics),
           )
         }
         if (
           ${ELECTRON_SMOKE_MAX_INPUT_ECHO_MS} > 0 &&
-          taudDiagnostics.streamDiagnostics.inputBytesTotal === 0
+          pettydDiagnostics.streamDiagnostics.inputBytesTotal === 0
         ) {
-          throw new Error('Smoke taud stream diagnostics did not record terminal input bytes')
+          throw new Error('Smoke pettyd stream diagnostics did not record terminal input bytes')
         }
-        if (taudDiagnostics.streamDiagnostics.outputBytesTotal < ${ELECTRON_SMOKE_OUTPUT_BYTES}) {
+        if (pettydDiagnostics.streamDiagnostics.outputBytesTotal < ${ELECTRON_SMOKE_OUTPUT_BYTES}) {
           throw new Error(
-            'Smoke taud stream diagnostics did not record terminal output bytes: ' +
-              JSON.stringify(taudDiagnostics.streamDiagnostics),
+            'Smoke pettyd stream diagnostics did not record terminal output bytes: ' +
+              JSON.stringify(pettydDiagnostics.streamDiagnostics),
           )
         }
-        if (taudDiagnostics.streamDiagnostics.pendingOutputBytes > ${ELECTRON_SMOKE_MAX_PENDING_OUTPUT_BYTES}) {
+        if (pettydDiagnostics.streamDiagnostics.pendingOutputBytes > ${ELECTRON_SMOKE_MAX_PENDING_OUTPUT_BYTES}) {
           throw new Error(
-            'Smoke taud pending output bytes above budget: ' +
-              JSON.stringify(taudDiagnostics.streamDiagnostics),
+            'Smoke pettyd pending output bytes above budget: ' +
+              JSON.stringify(pettydDiagnostics.streamDiagnostics),
           )
         }
-        const bridgeDiagnostics = await api.getTaudPtyBridgeDiagnostics()
+        const bridgeDiagnostics = await api.getPettydPtyBridgeDiagnostics()
         if (!bridgeDiagnostics || !bridgeDiagnostics.portConnected) {
-          throw new Error('Smoke taud bridge diagnostics were not connected: ' + JSON.stringify(bridgeDiagnostics))
+          throw new Error('Smoke pettyd bridge diagnostics were not connected: ' + JSON.stringify(bridgeDiagnostics))
         }
         if (
           bridgeDiagnostics.postFailuresTotal !== 0 ||
           bridgeDiagnostics.messagesDroppedNoPortTotal !== 0
         ) {
-          throw new Error('Smoke taud bridge lost MessagePort posts: ' + JSON.stringify(bridgeDiagnostics))
+          throw new Error('Smoke pettyd bridge lost MessagePort posts: ' + JSON.stringify(bridgeDiagnostics))
         }
         if (
           bridgeDiagnostics.dataMessagesPostedTotal === 0 ||
           bridgeDiagnostics.dataCharsPostedTotal < ${ELECTRON_SMOKE_OUTPUT_BYTES}
         ) {
-          throw new Error('Smoke taud bridge diagnostics did not record terminal output posts: ' + JSON.stringify(bridgeDiagnostics))
+          throw new Error('Smoke pettyd bridge diagnostics did not record terminal output posts: ' + JSON.stringify(bridgeDiagnostics))
         }
         const rendererTraceEntries =
-          typeof window.__TAU_RENDERER_TRACE__?.entries === 'function'
-            ? window.__TAU_RENDERER_TRACE__.entries()
+          typeof window.__PETTY_RENDERER_TRACE__?.entries === 'function'
+            ? window.__PETTY_RENDERER_TRACE__.entries()
             : []
         const rendererTraceNames = new Set(rendererTraceEntries.map((entry) => entry.name))
         for (const requiredTraceName of [
-          'tau:ui:app-mounted',
-          'tau:ui:layout-loaded',
+          'petty:ui:app-mounted',
+          'petty:ui:layout-loaded',
         ]) {
           if (!rendererTraceNames.has(requiredTraceName)) {
             throw new Error(
@@ -886,7 +892,7 @@ while time.time() < deadline:
           throughputBytesPerSec,
           receivedBytes: ${ELECTRON_SMOKE_OUTPUT_BYTES},
           diagnostics,
-          taudDiagnostics,
+          pettydDiagnostics,
           bridgeDiagnostics,
           rendererTraceEntries,
         }
@@ -987,33 +993,33 @@ function electronSmokeReloadAttachScript(input: { sessionId: string }): string {
         ) {
           throw new Error('Smoke reload lost preload terminal output before subscription: ' + JSON.stringify(diagnostics))
         }
-        const taudDiagnostics = await api.getTaudDiagnostics()
-        if (!taudDiagnostics || !taudDiagnostics.state.endsWith('-live')) {
-          throw new Error('Smoke reload taud diagnostics were not live: ' + JSON.stringify(taudDiagnostics))
+        const pettydDiagnostics = await api.getPettydDiagnostics()
+        if (!pettydDiagnostics || !pettydDiagnostics.state.endsWith('-live')) {
+          throw new Error('Smoke reload pettyd diagnostics were not live: ' + JSON.stringify(pettydDiagnostics))
         }
         if (
-          typeof taudDiagnostics.daemonOwnership !== 'string' ||
-          typeof taudDiagnostics.recoveryAction !== 'string'
+          typeof pettydDiagnostics.daemonOwnership !== 'string' ||
+          typeof pettydDiagnostics.recoveryAction !== 'string'
         ) {
-          throw new Error('Smoke reload taud diagnostics did not include recovery policy: ' + JSON.stringify(taudDiagnostics))
+          throw new Error('Smoke reload pettyd diagnostics did not include recovery policy: ' + JSON.stringify(pettydDiagnostics))
         }
         if (
-          !taudDiagnostics.timing ||
-          typeof taudDiagnostics.timing.lastPingDurationMs !== 'number' ||
-          typeof taudDiagnostics.timing.lastTransitionAt !== 'number'
+          !pettydDiagnostics.timing ||
+          typeof pettydDiagnostics.timing.lastPingDurationMs !== 'number' ||
+          typeof pettydDiagnostics.timing.lastTransitionAt !== 'number'
         ) {
-          throw new Error('Smoke reload taud diagnostics did not include lifecycle timing')
+          throw new Error('Smoke reload pettyd diagnostics did not include lifecycle timing')
         }
-        const bridgeDiagnostics = await api.getTaudPtyBridgeDiagnostics()
+        const bridgeDiagnostics = await api.getPettydPtyBridgeDiagnostics()
         if (!bridgeDiagnostics || !bridgeDiagnostics.portConnected) {
-          throw new Error('Smoke reload taud bridge diagnostics were not connected: ' + JSON.stringify(bridgeDiagnostics))
+          throw new Error('Smoke reload pettyd bridge diagnostics were not connected: ' + JSON.stringify(bridgeDiagnostics))
         }
         if (
           bridgeDiagnostics.postFailuresTotal !== 0 ||
           bridgeDiagnostics.messagesDroppedNoPortTotal !== 0 ||
           bridgeDiagnostics.dataMessagesPostedTotal === 0
         ) {
-          throw new Error('Smoke reload taud bridge diagnostics were unhealthy: ' + JSON.stringify(bridgeDiagnostics))
+          throw new Error('Smoke reload pettyd bridge diagnostics were unhealthy: ' + JSON.stringify(bridgeDiagnostics))
         }
         return {
           sessionId: ${JSON.stringify(input.sessionId)},
@@ -1022,7 +1028,7 @@ function electronSmokeReloadAttachScript(input: { sessionId: string }): string {
           inputEchoMs,
           attached,
           diagnostics,
-          taudDiagnostics,
+          pettydDiagnostics,
           bridgeDiagnostics,
         }
       } finally {
@@ -1116,9 +1122,9 @@ type ElectronSmokeProcessMetrics = {
   mainRssKb: number
   rendererPid: number
   rendererRssKb: number | null
-  taudPid: number | null
-  taudRssKb: number | null
-  taudDiagnostics: ReturnType<TaudClient['getLifecycleDiagnostics']> | null
+  pettydPid: number | null
+  pettydRssKb: number | null
+  pettydDiagnostics: ReturnType<PettydClient['getLifecycleDiagnostics']> | null
 }
 
 type ElectronSmokeReloadCycleSummary = {
@@ -1166,36 +1172,38 @@ function summarizeElectronSmokeResult(result: any) {
           ? result.diagnostics.pendingOutputTruncatedCharsTotal
           : null,
     },
-    taud: {
+    pettyd: {
       state:
-        typeof result?.taudDiagnostics?.state === 'string' ? result.taudDiagnostics.state : null,
+        typeof result?.pettydDiagnostics?.state === 'string'
+          ? result.pettydDiagnostics.state
+          : null,
       controlRequestCount:
-        typeof result?.taudDiagnostics?.controlRequestCount === 'number'
-          ? result.taudDiagnostics.controlRequestCount
+        typeof result?.pettydDiagnostics?.controlRequestCount === 'number'
+          ? result.pettydDiagnostics.controlRequestCount
           : null,
       activeSubscribers:
-        typeof result?.taudDiagnostics?.streamDiagnostics?.activeSubscribers === 'number'
-          ? result.taudDiagnostics.streamDiagnostics.activeSubscribers
+        typeof result?.pettydDiagnostics?.streamDiagnostics?.activeSubscribers === 'number'
+          ? result.pettydDiagnostics.streamDiagnostics.activeSubscribers
           : null,
       pendingOutputBytes:
-        typeof result?.taudDiagnostics?.streamDiagnostics?.pendingOutputBytes === 'number'
-          ? result.taudDiagnostics.streamDiagnostics.pendingOutputBytes
+        typeof result?.pettydDiagnostics?.streamDiagnostics?.pendingOutputBytes === 'number'
+          ? result.pettydDiagnostics.streamDiagnostics.pendingOutputBytes
           : null,
       outputBytesTotal:
-        typeof result?.taudDiagnostics?.streamDiagnostics?.outputBytesTotal === 'number'
-          ? result.taudDiagnostics.streamDiagnostics.outputBytesTotal
+        typeof result?.pettydDiagnostics?.streamDiagnostics?.outputBytesTotal === 'number'
+          ? result.pettydDiagnostics.streamDiagnostics.outputBytesTotal
           : null,
       inputBytesTotal:
-        typeof result?.taudDiagnostics?.streamDiagnostics?.inputBytesTotal === 'number'
-          ? result.taudDiagnostics.streamDiagnostics.inputBytesTotal
+        typeof result?.pettydDiagnostics?.streamDiagnostics?.inputBytesTotal === 'number'
+          ? result.pettydDiagnostics.streamDiagnostics.inputBytesTotal
           : null,
       lastPingDurationMs:
-        typeof result?.taudDiagnostics?.timing?.lastPingDurationMs === 'number'
-          ? result.taudDiagnostics.timing.lastPingDurationMs
+        typeof result?.pettydDiagnostics?.timing?.lastPingDurationMs === 'number'
+          ? result.pettydDiagnostics.timing.lastPingDurationMs
           : null,
       lastStartDurationMs:
-        typeof result?.taudDiagnostics?.timing?.lastStartDurationMs === 'number'
-          ? result.taudDiagnostics.timing.lastStartDurationMs
+        typeof result?.pettydDiagnostics?.timing?.lastStartDurationMs === 'number'
+          ? result.pettydDiagnostics.timing.lastStartDurationMs
           : null,
     },
     bridge: {
@@ -1260,46 +1268,46 @@ async function rssKbForPid(pid: number): Promise<number | null> {
 async function sampleElectronSmokeMetrics(
   window: BrowserWindowInstance,
 ): Promise<ElectronSmokeProcessMetrics> {
-  const taudDiagnostics =
-    (await taudClient?.refreshLifecycleDiagnostics().catch(() => null)) ?? null
-  const taudPid = taudDiagnostics?.spawnedPid ?? null
+  const pettydDiagnostics =
+    (await pettydClient?.refreshLifecycleDiagnostics().catch(() => null)) ?? null
+  const pettydPid = pettydDiagnostics?.spawnedPid ?? null
   const rendererPid = window.webContents.getOSProcessId()
-  const [rendererRssKb, taudRssKb] = await Promise.all([
+  const [rendererRssKb, pettydRssKb] = await Promise.all([
     rssKbForPid(rendererPid),
-    taudPid ? rssKbForPid(taudPid) : Promise.resolve(null),
+    pettydPid ? rssKbForPid(pettydPid) : Promise.resolve(null),
   ])
 
   return {
     mainRssKb: Math.round(process.memoryUsage().rss / 1024),
     rendererPid,
     rendererRssKb,
-    taudPid,
-    taudRssKb,
-    taudDiagnostics,
+    pettydPid,
+    pettydRssKb,
+    pettydDiagnostics,
   }
 }
 
 function summarizeElectronSmokeMetrics(metrics: ElectronSmokeProcessMetrics) {
-  const stream = metrics.taudDiagnostics?.streamDiagnostics
+  const stream = metrics.pettydDiagnostics?.streamDiagnostics
   return {
     mainRssKb: metrics.mainRssKb,
     rendererPid: metrics.rendererPid,
     rendererRssKb: metrics.rendererRssKb,
-    taudPid: metrics.taudPid,
-    taudRssKb: metrics.taudRssKb,
-    taud: metrics.taudDiagnostics
+    pettydPid: metrics.pettydPid,
+    pettydRssKb: metrics.pettydRssKb,
+    pettyd: metrics.pettydDiagnostics
       ? {
-          state: metrics.taudDiagnostics.state,
-          daemonOwnership: metrics.taudDiagnostics.daemonOwnership,
-          recoveryAction: metrics.taudDiagnostics.recoveryAction,
-          controlRequestCount: metrics.taudDiagnostics.controlRequestCount,
+          state: metrics.pettydDiagnostics.state,
+          daemonOwnership: metrics.pettydDiagnostics.daemonOwnership,
+          recoveryAction: metrics.pettydDiagnostics.recoveryAction,
+          controlRequestCount: metrics.pettydDiagnostics.controlRequestCount,
           activeSubscribers: stream?.activeSubscribers ?? null,
           pendingOutputBytes: stream?.pendingOutputBytes ?? null,
           outputBytesTotal: stream?.outputBytesTotal ?? null,
           inputBytesTotal: stream?.inputBytesTotal ?? null,
           slowSubscriberDropsTotal: stream?.slowSubscriberDropsTotal ?? null,
-          lastPingDurationMs: metrics.taudDiagnostics.timing.lastPingDurationMs ?? null,
-          lastStartDurationMs: metrics.taudDiagnostics.timing.lastStartDurationMs ?? null,
+          lastPingDurationMs: metrics.pettydDiagnostics.timing.lastPingDurationMs ?? null,
+          lastStartDurationMs: metrics.pettydDiagnostics.timing.lastStartDurationMs ?? null,
         }
       : null,
   }
@@ -1313,9 +1321,9 @@ async function waitForElectronSmokeBaseline(
   let lastMetrics = await sampleElectronSmokeMetrics(window)
   while (!isSmokeSettled() && Date.now() < deadline) {
     if (
-      lastMetrics.taudPid &&
-      lastMetrics.taudRssKb !== null &&
-      lastMetrics.taudDiagnostics?.state.endsWith('-live')
+      lastMetrics.pettydPid &&
+      lastMetrics.pettydRssKb !== null &&
+      lastMetrics.pettydDiagnostics?.state.endsWith('-live')
     ) {
       return lastMetrics
     }
@@ -1371,7 +1379,7 @@ async function runElectronSmoke(): Promise<void> {
     )
   }
   const traceStarted = await startElectronSmokeTrace()
-  const token = `tau-electron-smoke-${Date.now().toString(36)}`
+  const token = `petty-electron-smoke-${Date.now().toString(36)}`
   let smokeSettled = false
   const smokePromise = withTimeout(
     window.webContents.executeJavaScript(
@@ -1385,7 +1393,7 @@ async function runElectronSmoke(): Promise<void> {
   })
   const beforeMetrics = await waitForElectronSmokeBaseline(window, () => smokeSettled)
   const result = await smokePromise
-  if (process.env.TAU_ELECTRON_SMOKE_SURFACE === '1') {
+  if (process.env.PETTY_ELECTRON_SMOKE_SURFACE === '1') {
     const keyboardCommand =
       "printf '\\164\\141\\165\\055\\151\\156\\160\\165\\164\\055\\157\\153\\012'\n"
     const surface = await withTimeout(
@@ -1395,23 +1403,23 @@ async function runElectronSmoke(): Promise<void> {
           const inspect = () => {
             const error = document.querySelector('.terminal-error');
             if (error) return reject(new Error(error.textContent || 'Terminal surface failed'));
-            const canvas = document.querySelector('.tau-native-terminal-canvas');
-            const input = document.querySelector('.tau-native-terminal-input');
+            const canvas = document.querySelector('.petty-native-terminal-canvas');
+            const input = document.querySelector('.petty-native-terminal-input');
             if (canvas && input && canvas.width > 0 && canvas.height > 0 &&
-                performance.getEntriesByName('tau:terminal:ready').length > 0) {
+                performance.getEntriesByName('petty:terminal:ready').length > 0) {
               const sessionId = canvas.closest('[data-session-id]')?.dataset.sessionId;
-              if (!sessionId) return reject(new Error('Tau canvas is not bound to a session'));
+              if (!sessionId) return reject(new Error('Petty canvas is not bound to a session'));
               if (document.activeElement !== input) {
-                if (performance.now() >= deadline) return reject(new Error('Tau terminal input did not focus: ' + document.activeElement?.className));
+                if (performance.now() >= deadline) return reject(new Error('Petty terminal input did not focus: ' + document.activeElement?.className));
                 setTimeout(inspect, 20);
                 return;
               }
-              const readable = document.querySelector('.tau-native-terminal-screen-reader');
-              if (!readable?.textContent?.trim()) return reject(new Error('Tau screen-reader viewport is empty'));
+              const readable = document.querySelector('.petty-native-terminal-screen-reader');
+              if (!readable?.textContent?.trim()) return reject(new Error('Petty screen-reader viewport is empty'));
               const bounds = canvas.getBoundingClientRect();
               return resolve({ width: canvas.width, height: canvas.height, sessionId, clickX: Math.round(bounds.left + bounds.width / 2), clickY: Math.round(bounds.top + bounds.height / 2) });
             }
-            if (performance.now() >= deadline) return reject(new Error('Tau canvas did not mount'));
+            if (performance.now() >= deadline) return reject(new Error('Petty canvas did not mount'));
             setTimeout(inspect, 20);
           };
           inspect();
@@ -1422,7 +1430,7 @@ async function runElectronSmoke(): Promise<void> {
       'Electron Ghostty canvas surface',
     )
     await window.webContents.executeJavaScript(
-      `document.querySelector('.tau-native-terminal-input').blur()`,
+      `document.querySelector('.petty-native-terminal-input').blur()`,
       true,
     )
     window.webContents.sendInputEvent({
@@ -1440,23 +1448,24 @@ async function runElectronSmoke(): Promise<void> {
       clickCount: 1,
     })
     const clickFocusedInput = await window.webContents.executeJavaScript(
-      `new Promise(resolve => setTimeout(() => resolve(document.activeElement?.className === 'tau-native-terminal-input'), 50))`,
+      `new Promise(resolve => setTimeout(() => resolve(document.activeElement?.className === 'petty-native-terminal-input'), 50))`,
       true,
     )
-    if (!clickFocusedInput) throw new Error('Clicking the Tau canvas did not focus terminal input')
+    if (!clickFocusedInput)
+      throw new Error('Clicking the Petty canvas did not focus terminal input')
     const outputPromise = window.webContents.executeJavaScript(
       `new Promise((resolve, reject) => {
         let output = '';
         const deadline = performance.now() + 10000;
         const off = window.electronAPI.onPtyData(${JSON.stringify(surface.sessionId)}, (data) => {
           output = (output + data).slice(-4096);
-          if (output.includes('tau-input-ok')) { off(); clearInterval(timer); resolve(true); }
+          if (output.includes('petty-input-ok')) { off(); clearInterval(timer); resolve(true); }
         });
         const timer = setInterval(() => {
           if (performance.now() < deadline) return;
           clearInterval(timer);
           off();
-          reject(new Error('Tau keyboard did not execute shell command: ' + JSON.stringify(output)));
+          reject(new Error('Petty keyboard did not execute shell command: ' + JSON.stringify(output)));
         }, 30);
       })`,
       true,
@@ -1469,7 +1478,7 @@ async function runElectronSmoke(): Promise<void> {
     }
     await withTimeout(outputPromise, ELECTRON_SMOKE_TIMEOUT_MS, 'Electron keyboard-to-PTY echo')
   }
-  if (process.env.TAU_ELECTRON_SMOKE_IMAGE === '1') {
+  if (process.env.PETTY_ELECTRON_SMOKE_IMAGE === '1') {
     const red = Buffer.alloc(8 * 8 * 4)
     for (let pixel = 0; pixel < red.length; pixel += 4) {
       red[pixel] = 255
@@ -1480,10 +1489,10 @@ async function runElectronSmoke(): Promise<void> {
     await withTimeout(
       window.webContents.executeJavaScript(
         `new Promise((resolve, reject) => {
-          const canvas = document.querySelector('.tau-native-terminal-canvas');
-          if (!canvas) return reject(new Error('Tau canvas not mounted for image smoke'));
+          const canvas = document.querySelector('.petty-native-terminal-canvas');
+          if (!canvas) return reject(new Error('Petty canvas not mounted for image smoke'));
           const canvasSessionId = canvas.closest('[data-session-id]')?.dataset.sessionId;
-          if (!canvasSessionId) return reject(new Error('Tau canvas is not bound to a session for image smoke'));
+          if (!canvasSessionId) return reject(new Error('Petty canvas is not bound to a session for image smoke'));
           const context = canvas.getContext('2d', { alpha: false });
           const deadline = performance.now() + 10000;
           window.electronAPI.writeSessionInput(canvasSessionId, ${JSON.stringify(command)});
@@ -1513,7 +1522,7 @@ async function runElectronSmoke(): Promise<void> {
       'Electron smoke UI-state setup',
     )
     for (let index = 1; index < ELECTRON_SMOKE_RELOAD_SESSION_COUNT; index += 1) {
-      const extraToken = `tau-electron-smoke-${Date.now().toString(36)}-${index + 1}`
+      const extraToken = `petty-electron-smoke-${Date.now().toString(36)}-${index + 1}`
       const extraResult = await withTimeout(
         window.webContents.executeJavaScript(
           electronSmokeScript({ cwd: process.cwd(), token: extraToken, keepSession: true }),
@@ -1544,7 +1553,7 @@ async function runElectronSmoke(): Promise<void> {
       if (cycle > 0) {
         reloadSessionResults = []
         for (let index = 0; index < ELECTRON_SMOKE_RELOAD_SESSION_COUNT; index += 1) {
-          const extraToken = `tau-electron-smoke-${Date.now().toString(36)}-cycle-${cycle + 1}-${index + 1}`
+          const extraToken = `petty-electron-smoke-${Date.now().toString(36)}-cycle-${cycle + 1}-${index + 1}`
           const extraResult = await withTimeout(
             window.webContents.executeJavaScript(
               electronSmokeScript({ cwd: process.cwd(), token: extraToken, keepSession: true }),
@@ -1646,10 +1655,10 @@ async function runElectronSmoke(): Promise<void> {
     beforeMetrics.rendererRssKb === null || afterMetrics.rendererRssKb === null
       ? null
       : afterMetrics.rendererRssKb - beforeMetrics.rendererRssKb
-  const taudRssGrowthKb =
-    beforeMetrics.taudRssKb === null || afterMetrics.taudRssKb === null
+  const pettydRssGrowthKb =
+    beforeMetrics.pettydRssKb === null || afterMetrics.pettydRssKb === null
       ? null
-      : afterMetrics.taudRssKb - beforeMetrics.taudRssKb
+      : afterMetrics.pettydRssKb - beforeMetrics.pettydRssKb
 
   if (
     ELECTRON_SMOKE_MAX_MAIN_RSS_GROWTH_KB > 0 &&
@@ -1669,13 +1678,13 @@ async function runElectronSmoke(): Promise<void> {
       )
     }
   }
-  if (ELECTRON_SMOKE_MAX_TAUD_RSS_GROWTH_KB > 0) {
-    if (taudRssGrowthKb === null) {
-      throw new Error('Smoke could not measure taud RSS growth')
+  if (ELECTRON_SMOKE_MAX_PETTYD_RSS_GROWTH_KB > 0) {
+    if (pettydRssGrowthKb === null) {
+      throw new Error('Smoke could not measure pettyd RSS growth')
     }
-    if (taudRssGrowthKb > ELECTRON_SMOKE_MAX_TAUD_RSS_GROWTH_KB) {
+    if (pettydRssGrowthKb > ELECTRON_SMOKE_MAX_PETTYD_RSS_GROWTH_KB) {
       throw new Error(
-        `Smoke taud RSS growth above budget: ${taudRssGrowthKb} KiB > ${ELECTRON_SMOKE_MAX_TAUD_RSS_GROWTH_KB} KiB`,
+        `Smoke pettyd RSS growth above budget: ${pettydRssGrowthKb} KiB > ${ELECTRON_SMOKE_MAX_PETTYD_RSS_GROWTH_KB} KiB`,
       )
     }
   }
@@ -1697,12 +1706,12 @@ async function runElectronSmoke(): Promise<void> {
     )
   }
   if (
-    ELECTRON_SMOKE_MAX_TAUD_RSS_KB > 0 &&
-    afterMetrics.taudRssKb !== null &&
-    afterMetrics.taudRssKb > ELECTRON_SMOKE_MAX_TAUD_RSS_KB
+    ELECTRON_SMOKE_MAX_PETTYD_RSS_KB > 0 &&
+    afterMetrics.pettydRssKb !== null &&
+    afterMetrics.pettydRssKb > ELECTRON_SMOKE_MAX_PETTYD_RSS_KB
   ) {
     throw new Error(
-      `Smoke taud RSS above budget: ${afterMetrics.taudRssKb} KiB > ${ELECTRON_SMOKE_MAX_TAUD_RSS_KB} KiB`,
+      `Smoke pettyd RSS above budget: ${afterMetrics.pettydRssKb} KiB > ${ELECTRON_SMOKE_MAX_PETTYD_RSS_KB} KiB`,
     )
   }
   if (ELECTRON_SMOKE_MAX_TOTAL_MS > 0 && totalMs > ELECTRON_SMOKE_MAX_TOTAL_MS) {
@@ -1764,19 +1773,22 @@ async function runElectronSmoke(): Promise<void> {
         after: afterMetrics,
         mainRssGrowthKb,
         rendererRssGrowthKb,
-        taudRssGrowthKb,
+        pettydRssGrowthKb,
         maxMainRssGrowthKb:
           ELECTRON_SMOKE_MAX_MAIN_RSS_GROWTH_KB > 0 ? ELECTRON_SMOKE_MAX_MAIN_RSS_GROWTH_KB : null,
         maxRendererRssGrowthKb:
           ELECTRON_SMOKE_MAX_RENDERER_RSS_GROWTH_KB > 0
             ? ELECTRON_SMOKE_MAX_RENDERER_RSS_GROWTH_KB
             : null,
-        maxTaudRssGrowthKb:
-          ELECTRON_SMOKE_MAX_TAUD_RSS_GROWTH_KB > 0 ? ELECTRON_SMOKE_MAX_TAUD_RSS_GROWTH_KB : null,
+        maxPettydRssGrowthKb:
+          ELECTRON_SMOKE_MAX_PETTYD_RSS_GROWTH_KB > 0
+            ? ELECTRON_SMOKE_MAX_PETTYD_RSS_GROWTH_KB
+            : null,
         maxMainRssKb: ELECTRON_SMOKE_MAX_MAIN_RSS_KB > 0 ? ELECTRON_SMOKE_MAX_MAIN_RSS_KB : null,
         maxRendererRssKb:
           ELECTRON_SMOKE_MAX_RENDERER_RSS_KB > 0 ? ELECTRON_SMOKE_MAX_RENDERER_RSS_KB : null,
-        maxTaudRssKb: ELECTRON_SMOKE_MAX_TAUD_RSS_KB > 0 ? ELECTRON_SMOKE_MAX_TAUD_RSS_KB : null,
+        maxPettydRssKb:
+          ELECTRON_SMOKE_MAX_PETTYD_RSS_KB > 0 ? ELECTRON_SMOKE_MAX_PETTYD_RSS_KB : null,
       },
       trace: traceResult,
     }),

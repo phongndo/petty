@@ -71,6 +71,6 @@ Final validation:
 - `bench:app-soak:budget`: passed, three reload cycles with two sessions, including echo and RSS bounds. This is a short budget check, not a long-term leak test.
 - Final packaged 8 MiB flood/input smoke passed with no output-drop diagnostic.
 
-Re-run package checks under an available display, through `nix develop -c`, using `bun run bench:reload:budget`, `bun run bench:app-soak:budget`, and `TAU_ELECTRON_SMOKE_OUTPUT_BYTES=8388608 TAU_ELECTRON_SMOKE_MAX_INPUT_ECHO_MS=500 TAU_ELECTRON_SMOKE_OUTPUT_TIMEOUT_MS=8000 bun run smoke:package`.
+Re-run package checks under an available display, through `nix develop -c`, using `bun run bench:reload:budget`, `bun run bench:app-soak:budget`, and `PETTY_ELECTRON_SMOKE_OUTPUT_BYTES=8388608 PETTY_ELECTRON_SMOKE_MAX_INPUT_ECHO_MS=500 PETTY_ELECTRON_SMOKE_OUTPUT_TIMEOUT_MS=8000 bun run smoke:package`.
 
-Temporary probe scripts, raw JSON, and diagnostic logs were kept in `/tmp/tau-output-opt/`, not added to the repository. That directory is session evidence, not a durable reproduction dependency; the workload and raw comparison samples are specified above.
+Temporary probe scripts, raw JSON, and diagnostic logs were kept in `/tmp/petty-output-opt/`, not added to the repository. That directory is session evidence, not a durable reproduction dependency; the workload and raw comparison samples are specified above.

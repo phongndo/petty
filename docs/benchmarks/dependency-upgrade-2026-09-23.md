@@ -28,7 +28,7 @@ Baseline repairs applied before the comparison: corrected the Zig package finger
 
 Host: NixOS Linux x86_64, AMD Ryzen 9 9950X (32 logical CPUs), same checkout base `3b98e0f`. Baseline `bun.lock` SHA-256 `de9a209ec66424e5dea93ac1510c5eb1342081c86e0739078fc2ba747b625b4c`; measured-after `bun.lock` SHA-256 `cd9978622ac2521878087763c7e4a89e8d16f13a5390cb1c937515027bcfdd8d`. The later Electron alignment changed the final lockfile SHA-256 to `5e1097fa96ba7089f8e89d343ce46d04fc755dbc836259f5e9308f0778ffc2ad`; the daemon and parser measurements predate that alignment, but the tested daemon binary and xterm version did not change. Bun 1.4.2 and Zig 0.15.2 on both; Node 22.22.3 before, 24.15.0 after. Tests were sequential with warmed build/cache, not isolated from machine load. Numbers below are observed samples, not a regression guarantee.
 
-Command for each daemon run: `TAUD_PATH="$PWD/apps/daemon/zig-out/bin/taud" TAU_LATENCY_BENCH_MANAGED_TAUD=1 TAU_LATENCY_BENCH_SAMPLES=200 bun run bench:latency` after `bun run build:taud` (baseline had no desktop `out/bin`, so the same daemon binary was selected without the explicit path). Each run spawns a new daemon and session under a temporary HOME; the benchmark reports rounded milliseconds per run. Raw individual request timings are not emitted by the existing harness.
+Command for each daemon run: `PETTYD_PATH="$PWD/apps/daemon/zig-out/bin/pettyd" PETTY_LATENCY_BENCH_MANAGED_PETTYD=1 PETTY_LATENCY_BENCH_SAMPLES=200 bun run bench:latency` after `bun run build:pettyd` (baseline had no desktop `out/bin`, so the same daemon binary was selected without the explicit path). Each run spawns a new daemon and session under a temporary HOME; the benchmark reports rounded milliseconds per run. Raw individual request timings are not emitted by the existing harness.
 
 | Run            | Before p50 / p95 / p99 / max (ms) | After p50 / p95 / p99 / max (ms) |
 | -------------- | --------------------------------- | -------------------------------- |
@@ -41,7 +41,7 @@ Command for each daemon run: `TAUD_PATH="$PWD/apps/daemon/zig-out/bin/taud" TAU_
 
 **Observed difference:** no change in median p50, p95, or max; p99 median decreased by 0.07 ms. At this scale, that difference is not evidence of a causal improvement. The stripped, statically linked daemon is byte-identical before and after (SHA-256 `e978f760447ee737a9a89a4689355bc1ed43d94b62df72f79d04d375a3eef4df`, 2,584,320 bytes).
 
-Secondary, single-run `bun run bench` parser outputs (Node.js, no rendering; xterm 6.0 unchanged; Ghostty-web is a separately fetched comparison package, **not** Tau's renderer):
+Secondary, single-run `bun run bench` parser outputs (Node.js, no rendering; xterm 6.0 unchanged; Ghostty-web is a separately fetched comparison package, **not** Petty's renderer):
 
 | xterm JS parser workload | Before     | After      | Observed difference |
 | ------------------------ | ---------- | ---------- | ------------------- |

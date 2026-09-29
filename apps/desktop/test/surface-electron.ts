@@ -1,5 +1,5 @@
-/* Browser-level correctness checks for the real Tau canvas/input surface (no PTY).
- * Invoked by `pnpm test:surface` after bundling tau-terminal.ts into .bench-cache.
+/* Browser-level correctness checks for the real Petty canvas/input surface (no PTY).
+ * Invoked by `pnpm test:surface` after bundling petty-terminal.ts into .bench-cache.
  */
 import { app, BrowserWindow } from 'electron'
 import { readFileSync } from 'node:fs'
@@ -8,7 +8,7 @@ import { resolve } from 'node:path'
 
 // run-electron compiles this entry in .bench-cache/electron-*, so use the working directory.
 const desktop = process.cwd()
-const script = readFileSync(resolve(desktop, '.bench-cache/tau-surface.js'))
+const script = readFileSync(resolve(desktop, '.bench-cache/petty-surface.js'))
 const wasm = readFileSync(resolve(desktop, 'public/ghostty-vt.wasm'))
 
 const html = `<!doctype html><html><head><meta charset="utf-8"><style>
@@ -50,7 +50,7 @@ async function run() {
     writeClipboardText: async value => { clipboard = value },
     openExternalUrl: async url => { opened = url },
   }
-  const term = await TauSurfaceTest.TauTerminal.create()
+  const term = await PettySurfaceTest.PettyTerminal.create()
   term.open(host)
   term.resize(30, 5)
   await painted()
@@ -63,11 +63,11 @@ async function run() {
   await painted()
   const blank = rgb(canvas, 3, 3)
   document.documentElement.dataset.theme = 'light'
-  window.dispatchEvent(new Event('tau:appearance'))
+  window.dispatchEvent(new Event('petty:appearance'))
   await painted()
   check('light appearance repaints terminal canvas', rgb(canvas, 3, 3) === '251,252,254', rgb(canvas, 3, 3))
   document.documentElement.dataset.theme = 'dark'
-  window.dispatchEvent(new Event('tau:appearance'))
+  window.dispatchEvent(new Event('petty:appearance'))
   await painted()
   check('dark appearance restores terminal canvas', rgb(canvas, 3, 3) === blank)
   let applied = false
@@ -179,7 +179,7 @@ async function run() {
   check('clearing a selection repaints the highlighted rows', !hasColor(canvas, selectionColor))
   await fetch('/action', { method: 'POST', body: 'click' })
   await painted()
-  const surfaceProto = TauSurfaceTest.TauTerminal.prototype
+  const surfaceProto = PettySurfaceTest.PettyTerminal.prototype
   const paintRow = surfaceProto.paintRow
   let rowsPainted = 0
   surfaceProto.paintRow = function (...args) {

@@ -1,8 +1,8 @@
 /**
- * Tau - direct taud terminal churn/RSS soak benchmark.
+ * Petty - direct pettyd terminal churn/RSS soak benchmark.
  *
  * CI mode intentionally runs a short smoke. Manual long runs can scale this up:
- *   TAU_SOAK_ITERATIONS=720 TAU_SOAK_BYTES=1048576 pnpm --filter @tau/desktop bench:soak
+ *   PETTY_SOAK_ITERATIONS=720 PETTY_SOAK_BYTES=1048576 pnpm --filter @petty/desktop bench:soak
  */
 
 import { execFile } from 'node:child_process'
@@ -13,13 +13,13 @@ import { homedir, platform, tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import { resolveTauStoragePaths } from '@tau/shared/storage-path'
-import { TaudStreamFrameKind } from '@tau/shared/taud-protocol'
-import { TaudStreamFrameParser } from '../src/main/taud-stream'
+import { resolvePettyStoragePaths } from '@petty/shared/storage-path'
+import { PettydStreamFrameKind } from '@petty/shared/pettyd-protocol'
+import { PettydStreamFrameParser } from '../src/main/pettyd-stream'
 
 type ControlResponse = Record<string, unknown>
 
-type ManagedTaud = {
+type ManagedPettyd = {
   readonly home: string
   readonly socketPath: string
   readonly child: ChildProcess
@@ -39,16 +39,16 @@ const benchDir = dirname(fileURLToPath(import.meta.url))
 const desktopRoot = resolve(benchDir, '..')
 const repoRoot = resolve(desktopRoot, '../..')
 
-const ITERATIONS = positiveInt(process.env.TAU_SOAK_ITERATIONS, 5)
-const OUTPUT_BYTES = positiveInt(process.env.TAU_SOAK_BYTES, 512 * 1024)
-const ENFORCE = process.env.TAU_SOAK_ENFORCE === '1'
-const MAX_RSS_GROWTH_KB = nonNegativeInt(process.env.TAU_SOAK_MAX_RSS_GROWTH_KB, 64 * 1024)
-const MAX_ITERATION_MS = nonNegativeInt(process.env.TAU_SOAK_MAX_ITERATION_MS, 5000)
-const MAX_PENDING_OUTPUT_BYTES = nonNegativeInt(process.env.TAU_SOAK_MAX_PENDING_OUTPUT_BYTES, 0)
-const MAX_ACTIVE_SUBSCRIBERS = nonNegativeInt(process.env.TAU_SOAK_MAX_ACTIVE_SUBSCRIBERS, 0)
+const ITERATIONS = positiveInt(process.env.PETTY_SOAK_ITERATIONS, 5)
+const OUTPUT_BYTES = positiveInt(process.env.PETTY_SOAK_BYTES, 512 * 1024)
+const ENFORCE = process.env.PETTY_SOAK_ENFORCE === '1'
+const MAX_RSS_GROWTH_KB = nonNegativeInt(process.env.PETTY_SOAK_MAX_RSS_GROWTH_KB, 64 * 1024)
+const MAX_ITERATION_MS = nonNegativeInt(process.env.PETTY_SOAK_MAX_ITERATION_MS, 5000)
+const MAX_PENDING_OUTPUT_BYTES = nonNegativeInt(process.env.PETTY_SOAK_MAX_PENDING_OUTPUT_BYTES, 0)
+const MAX_ACTIVE_SUBSCRIBERS = nonNegativeInt(process.env.PETTY_SOAK_MAX_ACTIVE_SUBSCRIBERS, 0)
 
 let socketPath =
-  process.env.TAUD_SOCKET_PATH || resolveTauStoragePaths(process.env.HOME || homedir()).socket
+  process.env.PETTYD_SOCKET_PATH || resolvePettyStoragePaths(process.env.HOME || homedir()).socket
 
 function positiveInt(raw: string | undefined, fallback: number): number {
   if (!raw) return fallback
@@ -70,10 +70,10 @@ function now(): number {
   return performance.now()
 }
 
-function findTaudBinary(): string | null {
-  const exeName = process.platform === 'win32' ? 'taud.exe' : 'taud'
+function findPettydBinary(): string | null {
+  const exeName = process.platform === 'win32' ? 'pettyd.exe' : 'pettyd'
   const candidates = [
-    process.env.TAUD_PATH,
+    process.env.PETTYD_PATH,
     resolve(desktopRoot, 'out/bin', exeName),
     resolve(repoRoot, 'apps/daemon/zig-out/bin', exeName),
   ].filter(Boolean) as string[]
@@ -89,7 +89,7 @@ function connectSocket(timeoutMs = 3000): Promise<net.Socket> {
     const socket = net.createConnection(socketPath)
     const timer = setTimeout(() => {
       socket.destroy()
-      rejectSocket(new Error(`Timed out connecting to taud at ${socketPath}`))
+      rejectSocket(new Error(`Timed out connecting to pettyd at ${socketPath}`))
     }, timeoutMs)
     socket.once('connect', () => {
       clearTimeout(timer)
@@ -114,7 +114,7 @@ async function writeAll(socket: net.Socket, payload: string, context: string): P
     }
     const onClose = () => {
       cleanup()
-      rejectWrite(new Error(`taud closed socket while writing ${context}`))
+      rejectWrite(new Error(`pettyd closed socket while writing ${context}`))
     }
     socket.once('error', onError)
     socket.once('close', onClose)
@@ -134,7 +134,7 @@ function sendJson(
     let buffered = Buffer.alloc(0)
     const timer = setTimeout(() => {
       cleanup()
-      rejectResponse(new Error('Timeout waiting for taud response'))
+      rejectResponse(new Error('Timeout waiting for pettyd response'))
     }, 5000)
 
     const cleanup = () => {
@@ -149,7 +149,7 @@ function sendJson(
     }
     const onClose = () => {
       cleanup()
-      rejectResponse(new Error('taud closed socket before responding'))
+      rejectResponse(new Error('pettyd closed socket before responding'))
     }
     const onData = (chunk: Buffer) => {
       buffered = buffered.length === 0 ? Buffer.from(chunk) : Buffer.concat([buffered, chunk])
@@ -160,7 +160,7 @@ function sendJson(
         const response = JSON.parse(buffered.subarray(0, newline).toString('utf8'))
         resolveResponse({ response, tail: buffered.subarray(newline + 1) })
       } catch {
-        rejectResponse(new Error('Failed to parse taud response'))
+        rejectResponse(new Error('Failed to parse pettyd response'))
       }
     }
 
@@ -179,24 +179,24 @@ async function closeSocket(socket: net.Socket): Promise<void> {
   socket.destroy()
 }
 
-async function startManagedTaud(): Promise<ManagedTaud> {
-  const binaryPath = findTaudBinary()
-  if (!binaryPath) throw new Error('taud binary not found; run pnpm build')
+async function startManagedPettyd(): Promise<ManagedPettyd> {
+  const binaryPath = findPettydBinary()
+  if (!binaryPath) throw new Error('pettyd binary not found; run pnpm build')
 
-  const home = mkdtempSync(resolve(tmpdir(), 'tau-soak-bench-'))
-  socketPath = resolveTauStoragePaths(home).socket
+  const home = mkdtempSync(resolve(tmpdir(), 'petty-soak-bench-'))
+  socketPath = resolvePettyStoragePaths(home).socket
   const adapters = resolve(desktopRoot, 'out/adapters')
   const child = spawn(binaryPath, [], {
     cwd: dirname(binaryPath),
     env: {
       ...process.env,
       HOME: home,
-      TAUD_ADAPTER_DIR: adapters,
+      PETTYD_ADAPTER_DIR: adapters,
     },
     stdio: ['ignore', 'ignore', 'pipe'],
   })
   child.stderr?.on('data', (chunk: Buffer) => {
-    process.stderr.write(`[taud stderr] ${chunk.toString('utf8')}`)
+    process.stderr.write(`[pettyd stderr] ${chunk.toString('utf8')}`)
   })
 
   for (let attempt = 0; attempt < 80; attempt++) {
@@ -223,7 +223,7 @@ async function startManagedTaud(): Promise<ManagedTaud> {
     } catch {
       if (child.exitCode !== null) {
         rmSync(home, { recursive: true, force: true })
-        throw new Error(`managed taud exited before socket became ready: ${child.exitCode}`)
+        throw new Error(`managed pettyd exited before socket became ready: ${child.exitCode}`)
       }
       await sleep(50)
     }
@@ -231,7 +231,7 @@ async function startManagedTaud(): Promise<ManagedTaud> {
 
   child.kill('SIGKILL')
   rmSync(home, { recursive: true, force: true })
-  throw new Error('managed taud failed to start')
+  throw new Error('managed pettyd failed to start')
 }
 
 async function control(request: Record<string, unknown>): Promise<ControlResponse> {
@@ -266,7 +266,7 @@ async function killSession(sessionId: string): Promise<void> {
   try {
     await control({ type: 'kill', id: `soak-kill-${sessionId}`, sessionId })
   } catch {
-    // Best-effort cleanup. Managed taud teardown is the final safety net.
+    // Best-effort cleanup. Managed pettyd teardown is the final safety net.
   }
 }
 
@@ -311,11 +311,11 @@ async function runIteration(iteration: number): Promise<IterationMetric> {
       )
     }
 
-    const parser = new TaudStreamFrameParser()
+    const parser = new PettydStreamFrameParser()
     let outputBytes = 0
     const consume = (chunk: Buffer) => {
       for (const frame of parser.push(chunk)) {
-        if (frame.sessionId === sessionId && frame.kind === TaudStreamFrameKind.Output) {
+        if (frame.sessionId === sessionId && frame.kind === PettydStreamFrameKind.Output) {
           outputBytes += frame.payload.length
         }
       }
@@ -350,7 +350,7 @@ async function runIteration(iteration: number): Promise<IterationMetric> {
       }
       const onClose = () => {
         cleanup()
-        rejectOutput(new Error(`taud stream closed during iteration ${iteration}`))
+        rejectOutput(new Error(`pettyd stream closed during iteration ${iteration}`))
       }
 
       if (outputBytes >= OUTPUT_BYTES) {
@@ -387,21 +387,21 @@ function enforceBudget(label: string, value: number, max: number, unit: string):
 }
 
 async function runSoakBenchmark(): Promise<void> {
-  const managed = await startManagedTaud()
+  const managed = await startManagedPettyd()
   managedPid = managed.child.pid ?? 0
-  if (managedPid <= 0) throw new Error('managed taud pid was not available')
+  if (managedPid <= 0) throw new Error('managed pettyd pid was not available')
 
   try {
     const initialRssKb = await rssKb(managedPid)
     const metrics: IterationMetric[] = []
 
-    console.log('Tau taud terminal soak benchmark')
+    console.log('Petty pettyd terminal soak benchmark')
     console.log('')
     console.log(`  Iterations: ${ITERATIONS}`)
     console.log(`  Output:     ${OUTPUT_BYTES} bytes/iteration`)
     console.log(`  Socket:     ${socketPath}`)
     console.log(`  Platform:   ${platform()} ${process.arch}`)
-    console.log(`  taud pid:   ${managedPid}`)
+    console.log(`  pettyd pid:   ${managedPid}`)
     console.log(`  Enforce:    ${ENFORCE ? 'yes' : 'no'}`)
     console.log('')
 

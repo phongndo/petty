@@ -2,9 +2,9 @@ import { EventEmitter } from 'node:events'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { MessagePortMain } from 'electron'
-import { TaudStreamFrameKind } from '@tau/shared/taud-protocol'
-import { TaudPtyBridge } from '../src/main/taud-pty-bridge'
-import type { TaudClient, TaudSessionStream } from '../src/main/taud-client'
+import { PettydStreamFrameKind } from '@petty/shared/pettyd-protocol'
+import { PettydPtyBridge } from '../src/main/pettyd-pty-bridge'
+import type { PettydClient, PettydSessionStream } from '../src/main/pettyd-client'
 
 class Port extends EventEmitter {
   messages: unknown[] = []
@@ -44,7 +44,7 @@ class Stream extends EventEmitter {
   frame(seq = 1) {
     this.emit('frame', {
       sessionId: 's',
-      kind: TaudStreamFrameKind.Output,
+      kind: PettydStreamFrameKind.Output,
       seq,
       payload: Uint8Array.of(65),
     })
@@ -53,7 +53,7 @@ class Stream extends EventEmitter {
 
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve))
 function fixture() {
-  type Attached = { response: { ok: true }; stream: TaudSessionStream }
+  type Attached = { response: { ok: true }; stream: PettydSessionStream }
   const pending: Array<ReturnType<typeof Promise.withResolvers<Attached>>> = []
   const client = {
     attachSession() {
@@ -63,7 +63,7 @@ function fixture() {
     },
     async detachSession() {},
   }
-  const bridge = new TaudPtyBridge({ client: client as unknown as TaudClient })
+  const bridge = new PettydPtyBridge({ client: client as unknown as PettydClient })
   const control = new Port()
   bridge.connectPort(control.main())
   const channel = new Port()
@@ -73,7 +73,7 @@ function fixture() {
   const resolve = async (index: number, stream = new Stream()) => {
     pending[index]!.resolve({
       response: { ok: true },
-      stream: stream as unknown as TaudSessionStream,
+      stream: stream as unknown as PettydSessionStream,
     })
     await turn()
     return stream
@@ -243,14 +243,14 @@ test('output posts exact-sized bytes: pooled views are copied, owned exact buffe
     // unrelated bytes, so the bridge must copy them. Exact, private buffers post as they are.
     const pooled = Buffer.alloc(64, 0x7a).subarray(8, 21)
     pooled.write('pooled output')
-    // Buffer.from(typedArray) may also land in the pool (Node >= 24.21); build it as taud-stream does.
+    // Buffer.from(typedArray) may also land in the pool (Node >= 24.21); build it as pettyd-stream does.
     const owned = Buffer.allocUnsafeSlow(8192).fill(66)
     assert.ok(pooled.buffer.byteLength > pooled.byteLength)
     assert.equal(owned.byteOffset === 0 && owned.buffer.byteLength === owned.byteLength, true)
     for (const [seq, payload] of [pooled, owned].entries()) {
       stream.emit('frame', {
         sessionId: 's',
-        kind: TaudStreamFrameKind.Output,
+        kind: PettydStreamFrameKind.Output,
         seq: seq + 1,
         payload,
       })

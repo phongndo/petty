@@ -128,9 +128,9 @@ test('Ghostty title and PTY-query effects cross the direct WASM callback table',
   try {
     vt.onTitleChange((title) => titles.push(title))
     vt.onPtyResponse((data) => responses.push(decoder.decode(data)))
-    vt.write('\x1b]2;Tau direct VT\x07')
+    vt.write('\x1b]2;Petty direct VT\x07')
     vt.write('\x1b[6n')
-    assert.ok(titles.includes('Tau direct VT'))
+    assert.ok(titles.includes('Petty direct VT'))
     assert.ok(responses.includes('\x1b[1;1R'))
   } finally {
     vt.dispose()
@@ -159,7 +159,7 @@ test('synchronized VT output announces render holds without delaying parse ackno
   }
 })
 
-test('VT size and color-scheme queries receive Tau pane geometry and dark theme', async () => {
+test('VT size and color-scheme queries receive Petty pane geometry and dark theme', async () => {
   const vt = await terminal(16, 4)
   const responses: string[] = []
   try {

@@ -1,18 +1,18 @@
 # Current architecture
 
-Tau's desktop is a client of the Zig `taud` daemon. The daemon owns PTYs, sessions, VT state, event logs, current-screen snapshots, SQLite session metadata, and the persistent mux graph. An Electron window can disconnect and attach again without killing a live PTY. A fresh shell starts when there is no saved layout. The current pane surface is a terminal; there is no loaded extension runtime or `tau ctl` CLI.
+Petty's desktop is a client of the Zig `pettyd` daemon. The daemon owns PTYs, sessions, VT state, event logs, current-screen snapshots, SQLite session metadata, and the persistent mux graph. An Electron window can disconnect and attach again without killing a live PTY. A fresh shell starts when there is no saved layout. The current pane surface is a terminal; there is no loaded extension runtime or `petty ctl` CLI.
 
 ## Ownership and change points
 
-| Change                                     | Start here                                                                                                                                                        |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Wire schemas, mux snapshots and events     | [`packages/shared/src/`](../packages/shared/src/) (`mux-graph.ts`, `session.ts`, `taud-protocol.ts`)                                                              |
-| Graph validation, revisions, persistence   | [`apps/daemon/src/mux_graph.zig`](../apps/daemon/src/mux_graph.zig) and [`daemon/control.zig`](../apps/daemon/src/daemon/control.zig)                             |
-| PTY lifecycle, streams and resource limits | [`apps/daemon/src/`](../apps/daemon/src/) (`session.zig`, `rpc.zig`, `limits.zig`, `daemon/`)                                                                     |
-| Daemon connection and renderer IPC         | [`apps/desktop/src/main/`](../apps/desktop/src/main/) (`taud-client.ts`, `taud-pty-bridge.ts`, `index.ts`)                                                        |
-| Renderer layout and terminal presentation  | [`apps/desktop/src/renderer/`](../apps/desktop/src/renderer/) (`state/store.ts`, `state/graph-sync.ts`, `ui/`, `terminal.ts`, `tau-terminal.ts`, `ghostty-vt.ts`) |
+| Change                                     | Start here                                                                                                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Wire schemas, mux snapshots and events     | [`packages/shared/src/`](../packages/shared/src/) (`mux-graph.ts`, `session.ts`, `pettyd-protocol.ts`)                                                              |
+| Graph validation, revisions, persistence   | [`apps/daemon/src/mux_graph.zig`](../apps/daemon/src/mux_graph.zig) and [`daemon/control.zig`](../apps/daemon/src/daemon/control.zig)                               |
+| PTY lifecycle, streams and resource limits | [`apps/daemon/src/`](../apps/daemon/src/) (`session.zig`, `rpc.zig`, `limits.zig`, `daemon/`)                                                                       |
+| Daemon connection and renderer IPC         | [`apps/desktop/src/main/`](../apps/desktop/src/main/) (`pettyd-client.ts`, `pettyd-pty-bridge.ts`, `index.ts`)                                                      |
+| Renderer layout and terminal presentation  | [`apps/desktop/src/renderer/`](../apps/desktop/src/renderer/) (`state/store.ts`, `state/graph-sync.ts`, `ui/`, `terminal.ts`, `petty-terminal.ts`, `ghostty-vt.ts`) |
 
-The Solid renderer keeps an interactive projection of tabs and panes, using a vanilla Zustand store and a native split-tree UI. Electron main owns settings.json: it validates sender-bound settings IPC, then reads and atomically writes the file in-process. It also hosts the taud transport and native window APIs. Graph replacement goes through Electron main to `taud`; mutations carry an expected revision to reject stale writes. The daemon validates snapshots, increments `graphRev` and `eventSeq`, and persists a checksummed graph with a previous checkpoint for recovery. Pane identity and session identity are separate: closing or replacing a view does not by itself mean killing its PTY. Read [terminal byte path](terminal-byte-path.md) when changing stream ownership, acknowledgements or reload behavior.
+The Solid renderer keeps an interactive projection of tabs and panes, using a vanilla Zustand store and a native split-tree UI. Electron main owns settings.json: it validates sender-bound settings IPC, then reads and atomically writes the file in-process. It also hosts the pettyd transport and native window APIs. Graph replacement goes through Electron main to `pettyd`; mutations carry an expected revision to reject stale writes. The daemon validates snapshots, increments `graphRev` and `eventSeq`, and persists a checksummed graph with a previous checkpoint for recovery. Pane identity and session identity are separate: closing or replacing a view does not by itself mean killing its PTY. Read [terminal byte path](terminal-byte-path.md) when changing stream ownership, acknowledgements or reload behavior.
 
 ## Trust boundary
 

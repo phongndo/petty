@@ -1,10 +1,10 @@
-/* Tau surface benchmark driver: the production TauTerminal canvas + Ghostty WASM + sequenced
+/* Petty surface benchmark driver: the production PettyTerminal canvas + Ghostty WASM + sequenced
  * writer in a sandboxed Electron renderer (unlike bench:terminal, which measures xterm.js).
  *
- *   TAU_SURFACE_BENCH_SOURCES="baseline=/path/to/other/apps/desktop,candidate=."   (default: this tree)
- *   TAU_SURFACE_BENCH_SCENARIOS=flood-sgr,input-under-load-4   TAU_SURFACE_BENCH_ROUNDS=3
- *   TAU_SURFACE_BENCH_CYCLES=30   (create-close iterations)
- *   TAU_SURFACE_BENCH_PROFILE=1   (separate attribution run: CPU profile + sampled allocations)
+ *   PETTY_SURFACE_BENCH_SOURCES="baseline=/path/to/other/apps/desktop,candidate=."   (default: this tree)
+ *   PETTY_SURFACE_BENCH_SCENARIOS=flood-sgr,input-under-load-4   PETTY_SURFACE_BENCH_ROUNDS=3
+ *   PETTY_SURFACE_BENCH_CYCLES=30   (create-close iterations)
+ *   PETTY_SURFACE_BENCH_PROFILE=1   (separate attribution run: CPU profile + sampled allocations)
  *
  * Sources run in alternating order each round, one Electron process per scenario. Needs a display
  * (Xvfb on headless Linux). Xvfb/software-canvas results are not GPU or presentation measurements.
@@ -34,16 +34,16 @@ const ALL = [
   'idle',
   'create-close',
 ]
-const scenarios = (process.env.TAU_SURFACE_BENCH_SCENARIOS ?? ALL.join(',')).split(',')
-const rounds = Number(process.env.TAU_SURFACE_BENCH_ROUNDS ?? '3')
-const profile = process.env.TAU_SURFACE_BENCH_PROFILE === '1'
-const sources = (process.env.TAU_SURFACE_BENCH_SOURCES ?? `current=${desktop}`)
+const scenarios = (process.env.PETTY_SURFACE_BENCH_SCENARIOS ?? ALL.join(',')).split(',')
+const rounds = Number(process.env.PETTY_SURFACE_BENCH_ROUNDS ?? '3')
+const profile = process.env.PETTY_SURFACE_BENCH_PROFILE === '1'
+const sources = (process.env.PETTY_SURFACE_BENCH_SOURCES ?? `current=${desktop}`)
   .split(',')
   .map((entry) => {
     const [label, root] = entry.split('=')
     return { label: label!, root: resolve(root ?? desktop) }
   })
-const outputPath = resolve(process.env.TAU_SURFACE_BENCH_OUT ?? resolve(cache, 'results.json'))
+const outputPath = resolve(process.env.PETTY_SURFACE_BENCH_OUT ?? resolve(cache, 'results.json'))
 const wasm = resolve(desktop, 'public/ghostty-vt.wasm')
 
 async function bundlePage(label: string, root: string): Promise<string> {
@@ -96,7 +96,7 @@ async function runScenario(label: string, name: string): Promise<Record<string, 
       `--scenario=${name}`,
       `--out=${out}`,
       `--profile=${profile ? 1 : 0}`,
-      `--cycles=${process.env.TAU_SURFACE_BENCH_CYCLES ?? '30'}`,
+      `--cycles=${process.env.PETTY_SURFACE_BENCH_CYCLES ?? '30'}`,
       ...(process.platform === 'linux' && process.env.CI === 'true' ? ['--no-sandbox'] : []),
     ],
     { stdio: ['ignore', 'inherit', 'pipe'], env },

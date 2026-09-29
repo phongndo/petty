@@ -1,5 +1,5 @@
-import { defaultShortcutKey, shortcuts, type ShortcutId } from '@tau/shared/preferences'
-import type { SettingsData } from '@tau/shared/session'
+import { defaultShortcutKey, shortcuts, type ShortcutId } from '@petty/shared/preferences'
+import type { SettingsData } from '@petty/shared/session'
 
 export type KeyInput = {
   key: string

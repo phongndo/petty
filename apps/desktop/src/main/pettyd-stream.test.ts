@@ -19,31 +19,31 @@ import {
   ghosttyNativeCurrentScreenSnapshotToAnsi,
   isFallbackCurrentScreenSnapshot,
   isGhosttyNativeCurrentScreenSnapshot,
-} from '@tau/shared/current-screen-snapshot'
+} from '@petty/shared/current-screen-snapshot'
 import {
-  TAUD_CONTROL_CAPABILITIES,
-  TAUD_CONTROL_PROTOCOL_VERSION,
-  TAUD_STREAM_HEADER_SIZE,
-  TAUD_STREAM_MAGIC,
-  TAUD_STREAM_MAX_PAYLOAD_BYTES,
-  TAUD_STREAM_SESSION_ID_SIZE,
-  TAUD_STREAM_VERSION,
-  TaudStreamFrameKind,
-} from '@tau/shared/taud-protocol'
+  PETTYD_CONTROL_CAPABILITIES,
+  PETTYD_CONTROL_PROTOCOL_VERSION,
+  PETTYD_STREAM_HEADER_SIZE,
+  PETTYD_STREAM_MAGIC,
+  PETTYD_STREAM_MAX_PAYLOAD_BYTES,
+  PETTYD_STREAM_SESSION_ID_SIZE,
+  PETTYD_STREAM_VERSION,
+  PettydStreamFrameKind,
+} from '@petty/shared/pettyd-protocol'
 import {
-  TAUD_STREAM_PAYLOAD_LENGTH_OFFSET,
-  decodeTaudExitPayload,
-  decodeTaudResizePayload,
-  encodeTaudResizePayload,
-  encodeTaudStreamFrame,
-  TaudStreamFrameParser,
-  taudCrc32,
-} from './taud-stream'
+  PETTYD_STREAM_PAYLOAD_LENGTH_OFFSET,
+  decodePettydExitPayload,
+  decodePettydResizePayload,
+  encodePettydResizePayload,
+  encodePettydStreamFrame,
+  PettydStreamFrameParser,
+  pettydCrc32,
+} from './pettyd-stream'
 
 const fixtureRoot = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../../../..',
-  'packages/shared/fixtures/taud-protocol',
+  'packages/shared/fixtures/pettyd-protocol',
 )
 
 function readFixture(name: string): string {
@@ -78,21 +78,21 @@ function readProtocolSpec(): ProtocolSpec {
   return JSON.parse(readFixture('spec.json')) as ProtocolSpec
 }
 
-test('taud protocol spec matches TS constants and fixture files', () => {
+test('pettyd protocol spec matches TS constants and fixture files', () => {
   const spec = readProtocolSpec()
-  assert.equal(spec.control.protocolVersion, TAUD_CONTROL_PROTOCOL_VERSION)
-  assert.deepEqual(spec.control.capabilities, [...TAUD_CONTROL_CAPABILITIES])
-  assert.equal(spec.stream.magic, TAUD_STREAM_MAGIC)
-  assert.equal(spec.stream.version, TAUD_STREAM_VERSION)
-  assert.equal(spec.stream.sessionIdSize, TAUD_STREAM_SESSION_ID_SIZE)
-  assert.equal(spec.stream.headerSize, TAUD_STREAM_HEADER_SIZE)
-  assert.equal(spec.stream.maxPayloadBytes, TAUD_STREAM_MAX_PAYLOAD_BYTES)
+  assert.equal(spec.control.protocolVersion, PETTYD_CONTROL_PROTOCOL_VERSION)
+  assert.deepEqual(spec.control.capabilities, [...PETTYD_CONTROL_CAPABILITIES])
+  assert.equal(spec.stream.magic, PETTYD_STREAM_MAGIC)
+  assert.equal(spec.stream.version, PETTYD_STREAM_VERSION)
+  assert.equal(spec.stream.sessionIdSize, PETTYD_STREAM_SESSION_ID_SIZE)
+  assert.equal(spec.stream.headerSize, PETTYD_STREAM_HEADER_SIZE)
+  assert.equal(spec.stream.maxPayloadBytes, PETTYD_STREAM_MAX_PAYLOAD_BYTES)
   assert.deepEqual(spec.stream.frameKinds, [
-    { name: 'output', value: TaudStreamFrameKind.Output },
-    { name: 'input', value: TaudStreamFrameKind.Input },
-    { name: 'resize', value: TaudStreamFrameKind.Resize },
-    { name: 'snapshot', value: TaudStreamFrameKind.Snapshot },
-    { name: 'exit', value: TaudStreamFrameKind.Exit },
+    { name: 'output', value: PettydStreamFrameKind.Output },
+    { name: 'input', value: PettydStreamFrameKind.Input },
+    { name: 'resize', value: PettydStreamFrameKind.Resize },
+    { name: 'snapshot', value: PettydStreamFrameKind.Snapshot },
+    { name: 'exit', value: PettydStreamFrameKind.Exit },
   ])
 
   for (const fixture of [
@@ -105,9 +105,9 @@ test('taud protocol spec matches TS constants and fixture files', () => {
   }
 })
 
-test('taud stream encoder matches the shared golden output fixture', () => {
-  const encoded = encodeTaudStreamFrame({
-    kind: TaudStreamFrameKind.Output,
+test('pettyd stream encoder matches the shared golden output fixture', () => {
+  const encoded = encodePettydStreamFrame({
+    kind: PettydStreamFrameKind.Output,
     sessionId: 'session-1',
     seq: 7,
     payload: Buffer.from('hello'),
@@ -115,125 +115,125 @@ test('taud stream encoder matches the shared golden output fixture', () => {
 
   assert.equal(encoded.toString('hex'), readFixture('stream-output-frame.hex'))
 
-  const frames = new TaudStreamFrameParser().push(encoded)
+  const frames = new PettydStreamFrameParser().push(encoded)
   assert.equal(frames.length, 1)
-  assert.equal(frames[0]?.kind, TaudStreamFrameKind.Output)
+  assert.equal(frames[0]?.kind, PettydStreamFrameKind.Output)
   assert.equal(frames[0]?.sessionId, 'session-1')
   assert.equal(frames[0]?.seq, 7)
   assert.equal(frames[0]?.payload.toString('utf8'), 'hello')
 })
 
-test('taud stream codec matches shared golden resize, exit, and snapshot fixtures', () => {
+test('pettyd stream codec matches shared golden resize, exit, and snapshot fixtures', () => {
   const resize = readHexFixture('stream-resize-frame.hex')
   const exit = readHexFixture('stream-exit-frame.hex')
   const snapshot = readHexFixture('stream-snapshot-frame.hex')
 
   assert.equal(
-    encodeTaudStreamFrame({
-      kind: TaudStreamFrameKind.Resize,
+    encodePettydStreamFrame({
+      kind: PettydStreamFrameKind.Resize,
       sessionId: 'session-1',
       seq: 11,
-      payload: encodeTaudResizePayload(120, 40),
+      payload: encodePettydResizePayload(120, 40),
     }).toString('hex'),
     resize.toString('hex'),
   )
   assert.equal(
-    decodeTaudResizePayload(new TaudStreamFrameParser().push(resize)[0]!.payload)?.cols,
+    decodePettydResizePayload(new PettydStreamFrameParser().push(resize)[0]!.payload)?.cols,
     120,
   )
 
   const exitPayload = Buffer.from([0, 0, 0, 2, 0, 0, 0, 15])
   assert.equal(
-    encodeTaudStreamFrame({
-      kind: TaudStreamFrameKind.Exit,
+    encodePettydStreamFrame({
+      kind: PettydStreamFrameKind.Exit,
       sessionId: 'session-1',
       seq: 12,
       payload: exitPayload,
     }).toString('hex'),
     exit.toString('hex'),
   )
-  assert.deepEqual(decodeTaudExitPayload(new TaudStreamFrameParser().push(exit)[0]!.payload), {
+  assert.deepEqual(decodePettydExitPayload(new PettydStreamFrameParser().push(exit)[0]!.payload), {
     exitCode: 2,
     signal: 15,
   })
 
   assert.equal(
-    encodeTaudStreamFrame({
-      kind: TaudStreamFrameKind.Snapshot,
+    encodePettydStreamFrame({
+      kind: PettydStreamFrameKind.Snapshot,
       sessionId: 'session-1',
       seq: 13,
       payload: 'state',
     }).toString('hex'),
     snapshot.toString('hex'),
   )
-  const frames = new TaudStreamFrameParser().push(snapshot)
-  assert.equal(frames[0]?.kind, TaudStreamFrameKind.Snapshot)
+  const frames = new PettydStreamFrameParser().push(snapshot)
+  assert.equal(frames[0]?.kind, PettydStreamFrameKind.Snapshot)
   assert.equal(frames[0]?.payload.toString('utf8'), 'state')
 })
 
-test('taud stream parser rejects shared golden corrupt CRC fixture', () => {
+test('pettyd stream parser rejects shared golden corrupt CRC fixture', () => {
   assert.throws(
-    () => new TaudStreamFrameParser().push(readHexFixture('stream-corrupt-crc-frame.hex')),
+    () => new PettydStreamFrameParser().push(readHexFixture('stream-corrupt-crc-frame.hex')),
     /CRC/u,
   )
 })
 
-test('taud stream frames encode and parse binary payloads', () => {
-  const encoded = encodeTaudStreamFrame({
-    kind: TaudStreamFrameKind.Output,
+test('pettyd stream frames encode and parse binary payloads', () => {
+  const encoded = encodePettydStreamFrame({
+    kind: PettydStreamFrameKind.Output,
     sessionId: 'session-1',
     seq: 7,
     payload: Buffer.from('hello'),
   })
 
-  const parser = new TaudStreamFrameParser()
+  const parser = new PettydStreamFrameParser()
   const frames = parser.push(encoded)
 
   assert.equal(frames.length, 1)
-  assert.equal(frames[0]?.kind, TaudStreamFrameKind.Output)
+  assert.equal(frames[0]?.kind, PettydStreamFrameKind.Output)
   assert.equal(frames[0]?.sessionId, 'session-1')
   assert.equal(frames[0]?.seq, 7)
   assert.equal(frames[0]?.payload.toString('utf8'), 'hello')
 })
 
-test('taud stream parser keeps partial tails for the next chunk', () => {
-  const first = encodeTaudStreamFrame({
-    kind: TaudStreamFrameKind.Output,
+test('pettyd stream parser keeps partial tails for the next chunk', () => {
+  const first = encodePettydStreamFrame({
+    kind: PettydStreamFrameKind.Output,
     sessionId: 'session-1',
     seq: 1,
     payload: 'first',
   })
-  const second = encodeTaudStreamFrame({
-    kind: TaudStreamFrameKind.Input,
+  const second = encodePettydStreamFrame({
+    kind: PettydStreamFrameKind.Input,
     sessionId: 'session-1',
     seq: 2,
     payload: '{"ok":true}',
   })
 
-  const parser = new TaudStreamFrameParser()
+  const parser = new PettydStreamFrameParser()
   assert.equal(parser.push(Buffer.concat([first, second.subarray(0, 5)])).length, 1)
   const frames = parser.push(second.subarray(5))
 
   assert.equal(frames.length, 1)
-  assert.equal(frames[0]?.kind, TaudStreamFrameKind.Input)
+  assert.equal(frames[0]?.kind, PettydStreamFrameKind.Input)
   assert.equal(frames[0]?.seq, 2)
 })
 
-test('taud stream parser never aliases a caller chunk that is reused after push', () => {
-  const first = encodeTaudStreamFrame({
-    kind: TaudStreamFrameKind.Output,
+test('pettyd stream parser never aliases a caller chunk that is reused after push', () => {
+  const first = encodePettydStreamFrame({
+    kind: PettydStreamFrameKind.Output,
     sessionId: 'session-1',
     seq: 1,
     payload: Buffer.alloc(6000, 'a'),
   })
-  const second = encodeTaudStreamFrame({
-    kind: TaudStreamFrameKind.Output,
+  const second = encodePettydStreamFrame({
+    kind: PettydStreamFrameKind.Output,
     sessionId: 'session-1',
     seq: 2,
     payload: 'tail frame',
   })
   const chunk = Buffer.concat([first, second.subarray(0, 20)])
-  const parser = new TaudStreamFrameParser()
+  const parser = new PettydStreamFrameParser()
   const [frame] = parser.push(chunk)
   // A socket reader may recycle its buffer; neither emitted payloads nor the retained partial
   // frame may observe that.
@@ -246,15 +246,15 @@ test('taud stream parser never aliases a caller chunk that is reused after push'
   assert.equal(tail?.payload.toString('utf8'), 'tail frame')
 })
 
-test('taud stream parser preserves magic prefixes while resyncing across chunks', () => {
-  const encoded = encodeTaudStreamFrame({
-    kind: TaudStreamFrameKind.Output,
+test('pettyd stream parser preserves magic prefixes while resyncing across chunks', () => {
+  const encoded = encodePettydStreamFrame({
+    kind: PettydStreamFrameKind.Output,
     sessionId: 'session-1',
     seq: 1,
     payload: 'recovered',
   })
 
-  const parser = new TaudStreamFrameParser()
+  const parser = new PettydStreamFrameParser()
   assert.deepEqual(parser.push(Buffer.concat([Buffer.from('noise'), encoded.subarray(0, 2)])), [])
   const frames = parser.push(encoded.subarray(2))
 
@@ -262,43 +262,43 @@ test('taud stream parser preserves magic prefixes while resyncing across chunks'
   assert.equal(frames[0]?.payload.toString('utf8'), 'recovered')
 })
 
-test('taud stream parser rejects CRC corruption', () => {
-  const encoded = encodeTaudStreamFrame({
-    kind: TaudStreamFrameKind.Output,
+test('pettyd stream parser rejects CRC corruption', () => {
+  const encoded = encodePettydStreamFrame({
+    kind: PettydStreamFrameKind.Output,
     sessionId: 'session-1',
     seq: 1,
     payload: 'bad',
   })
   encoded[encoded.length - 1]! ^= 0xff
 
-  const parser = new TaudStreamFrameParser()
+  const parser = new PettydStreamFrameParser()
   assert.throws(() => parser.push(encoded), /CRC/u)
 })
 
-test('taud resize and exit payload helpers round-trip', () => {
-  assert.deepEqual(decodeTaudResizePayload(encodeTaudResizePayload(120, 40)), {
+test('pettyd resize and exit payload helpers round-trip', () => {
+  assert.deepEqual(decodePettydResizePayload(encodePettydResizePayload(120, 40)), {
     cols: 120,
     rows: 40,
   })
-  assert.deepEqual(decodeTaudResizePayload(encodeTaudResizePayload(0xffff, 0xffff)), {
+  assert.deepEqual(decodePettydResizePayload(encodePettydResizePayload(0xffff, 0xffff)), {
     cols: 0xffff,
     rows: 0xffff,
   })
-  assert.throws(() => encodeTaudResizePayload(0x10000, 24), /Invalid taud resize dimensions/u)
-  assert.throws(() => encodeTaudResizePayload(120, 0x10000), /Invalid taud resize dimensions/u)
+  assert.throws(() => encodePettydResizePayload(0x10000, 24), /Invalid pettyd resize dimensions/u)
+  assert.throws(() => encodePettydResizePayload(120, 0x10000), /Invalid pettyd resize dimensions/u)
 
   const exitPayload = Buffer.alloc(8)
   exitPayload.writeInt32BE(2, 0)
   exitPayload.writeInt32BE(15, 4)
-  assert.deepEqual(decodeTaudExitPayload(exitPayload), { exitCode: 2, signal: 15 })
+  assert.deepEqual(decodePettydExitPayload(exitPayload), { exitCode: 2, signal: 15 })
 })
 
-test('current-screen snapshot magic constants encode Tau signatures', () => {
-  assert.equal(Buffer.from(CURRENT_SCREEN_SNAPSHOT_MAGIC).toString('latin1'), 'TAUSNP\x01\x00')
-  assert.equal(Buffer.from(FALLBACK_CURRENT_SCREEN_MAGIC).toString('latin1'), 'TAUVFB\x01\x00')
+test('current-screen snapshot magic constants encode Petty signatures', () => {
+  assert.equal(Buffer.from(CURRENT_SCREEN_SNAPSHOT_MAGIC).toString('latin1'), 'PETSNP\x01\x00')
+  assert.equal(Buffer.from(FALLBACK_CURRENT_SCREEN_MAGIC).toString('latin1'), 'PETVFB\x01\x00')
   assert.equal(
     Buffer.from(GHOSTTY_NATIVE_CURRENT_SCREEN_MAGIC).toString('latin1'),
-    'TAUGVT\x01\x00',
+    'PETGVT\x01\x00',
   )
 })
 
@@ -399,7 +399,7 @@ test('ghostty native current-screen snapshots carry VT restore bytes', () => {
   assert.equal(ghosttyNativeCurrentScreenSnapshotToAnsi(decodedNative), vt.toString('utf8'))
 })
 
-test('taud stream parser accepts snapshot frames with current-screen envelopes', () => {
+test('pettyd stream parser accepts snapshot frames with current-screen envelopes', () => {
   const payload = encodeCurrentScreenSnapshot({
     seq: 3,
     cols: 2,
@@ -411,24 +411,24 @@ test('taud stream parser accepts snapshot frames with current-screen envelopes',
       vt: Buffer.from('\x1b[2J\x1b[1;1Hok'),
     }),
   })
-  const encoded = encodeTaudStreamFrame({
-    kind: TaudStreamFrameKind.Snapshot,
+  const encoded = encodePettydStreamFrame({
+    kind: PettydStreamFrameKind.Snapshot,
     sessionId: 'session-1',
     seq: 3,
     payload,
   })
 
-  const frames = new TaudStreamFrameParser().push(encoded)
-  assert.equal(frames[0]?.kind, TaudStreamFrameKind.Snapshot)
+  const frames = new PettydStreamFrameParser().push(encoded)
+  assert.equal(frames[0]?.kind, PettydStreamFrameKind.Snapshot)
   assert.equal(decodeCurrentScreenSnapshot(frames[0]!.payload).seq, 3)
 })
 
-test('taud stream parser handles bursty output frames in order', () => {
+test('pettyd stream parser handles bursty output frames in order', () => {
   const encodedFrames: Buffer[] = []
   for (let seq = 1; seq <= 4096; seq++) {
     encodedFrames.push(
-      encodeTaudStreamFrame({
-        kind: TaudStreamFrameKind.Output,
+      encodePettydStreamFrame({
+        kind: PettydStreamFrameKind.Output,
         sessionId: 'stress-session',
         seq,
         payload: `line ${seq}\n`,
@@ -436,7 +436,7 @@ test('taud stream parser handles bursty output frames in order', () => {
     )
   }
 
-  const parser = new TaudStreamFrameParser()
+  const parser = new PettydStreamFrameParser()
   const frames = parser.push(Buffer.concat(encodedFrames))
 
   assert.equal(frames.length, encodedFrames.length)
@@ -445,21 +445,21 @@ test('taud stream parser handles bursty output frames in order', () => {
   assert.equal(frames.at(-1)?.payload.toString('utf8'), `line ${encodedFrames.length}\n`)
 })
 
-test('taud stream parser rejects oversized payload headers before buffering bodies', () => {
-  const encoded = encodeTaudStreamFrame({
-    kind: TaudStreamFrameKind.Output,
+test('pettyd stream parser rejects oversized payload headers before buffering bodies', () => {
+  const encoded = encodePettydStreamFrame({
+    kind: PettydStreamFrameKind.Output,
     sessionId: 'stress-session',
     seq: 1,
     payload: 'small',
   })
-  encoded.writeUInt32BE(TAUD_STREAM_MAX_PAYLOAD_BYTES + 1, TAUD_STREAM_PAYLOAD_LENGTH_OFFSET)
+  encoded.writeUInt32BE(PETTYD_STREAM_MAX_PAYLOAD_BYTES + 1, PETTYD_STREAM_PAYLOAD_LENGTH_OFFSET)
 
-  assert.throws(() => new TaudStreamFrameParser().push(encoded), /header/u)
+  assert.throws(() => new PettydStreamFrameParser().push(encoded), /header/u)
 })
 
 test('native stream CRC matches CRC-32/IEEE and the portable snapshot implementation', () => {
-  assert.equal(taudCrc32(Buffer.from('123456789')), 0xcbf43926)
-  assert.equal(taudCrc32(new Uint8Array()), 0)
+  assert.equal(pettydCrc32(Buffer.from('123456789')), 0xcbf43926)
+  assert.equal(pettydCrc32(new Uint8Array()), 0)
   const bytes = new Uint8Array(70_001)
   for (let index = 0; index < bytes.length; index++) bytes[index] = (index * 131) ^ (index >> 7)
   for (const view of [
@@ -468,5 +468,5 @@ test('native stream CRC matches CRC-32/IEEE and the portable snapshot implementa
     bytes.subarray(0, 17),
     Buffer.from(bytes.buffer, 9),
   ])
-    assert.equal(taudCrc32(view), currentScreenCrc32(view))
+    assert.equal(pettydCrc32(view), currentScreenCrc32(view))
 })

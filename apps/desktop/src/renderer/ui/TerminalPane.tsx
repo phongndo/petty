@@ -1,5 +1,5 @@
 import { createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js'
-import type { TauTerminal } from '../tau-terminal'
+import type { PettyTerminal } from '../petty-terminal'
 import {
   clearTerminalSearch,
   createTerminal,
@@ -26,7 +26,7 @@ export function TerminalPane(props: {
 }) {
   let surface: HTMLDivElement | undefined
   let searchInput: HTMLInputElement | undefined
-  let terminal: TauTerminal | null = null
+  let terminal: PettyTerminal | null = null
   let lastSearchToken = 0
   const [error, setError] = createSignal('')
   const [opening, setOpening] = createSignal(true)
@@ -41,7 +41,7 @@ export function TerminalPane(props: {
     let frame: number | undefined
     let timer: number | undefined
     const sessionId = props.sessionId
-    const renderShown = (instance: TauTerminal) => {
+    const renderShown = (instance: PettyTerminal) => {
       void window.electronAPI.signalReady().then(() => {
         if (disposed || terminal !== instance) return
         forceTerminalRender(instance)

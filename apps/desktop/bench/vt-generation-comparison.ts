@@ -1,7 +1,7 @@
 /**
- * Reproducible, headless VT ingestion comparison. This does NOT benchmark painting or taud.
+ * Reproducible, headless VT ingestion comparison. This does NOT benchmark painting or pettyd.
  * Run: nix develop -c tsx apps/desktop/bench/vt-generation-comparison.ts
- * Override the legacy WASM with TAU_GHOSTTY_WEB_WASM=/path/to/ghostty-vt.wasm.
+ * Override the legacy WASM with PETTY_GHOSTTY_WEB_WASM=/path/to/ghostty-vt.wasm.
  * The default is the cached ghostty-web@0.4.0-next.14.g6a1a50d npm artifact.
  */
 import { readFileSync } from 'node:fs'
@@ -9,15 +9,15 @@ import { resolve } from 'node:path'
 import xtermPackage from '@xterm/xterm'
 import { GhosttyVt } from '../src/renderer/ghostty-vt'
 
-const root = process.env.TAU_BENCH_DESKTOP ?? resolve(import.meta.dirname, '..')
+const root = process.env.PETTY_BENCH_DESKTOP ?? resolve(import.meta.dirname, '..')
 const oldWasm = readFileSync(
-  process.env.TAU_GHOSTTY_WEB_WASM ??
+  process.env.PETTY_GHOSTTY_WEB_WASM ??
     resolve(root, '.bench-cache/ghostty-web-0.4.0-next.14.g6a1a50d/package/ghostty-vt.wasm'),
 )
 const newWasm = readFileSync(resolve(root, 'public/ghostty-vt.wasm'))
-const runs = Number(process.env.TAU_VT_BENCH_RUNS ?? 5)
+const runs = Number(process.env.PETTY_VT_BENCH_RUNS ?? 5)
 if (!Number.isInteger(runs) || runs < 1 || runs > 30)
-  throw new Error('TAU_VT_BENCH_RUNS must be 1..30')
+  throw new Error('PETTY_VT_BENCH_RUNS must be 1..30')
 const { Terminal: Xterm } = xtermPackage
 const cols = 120
 const rows = 40
@@ -60,7 +60,7 @@ async function legacy(): Promise<Runner> {
   }
 }
 
-async function tau(): Promise<Runner> {
+async function petty(): Promise<Runner> {
   const term = await GhosttyVt.create(newWasm, cols, rows)
   return {
     async write(data) {
@@ -68,7 +68,7 @@ async function tau(): Promise<Runner> {
     },
     verify() {
       if (!term.render().rows.some((row) => row.cells.some((cell) => cell.text === 'b')))
-        throw new Error('Tau terminal screen did not contain output')
+        throw new Error('Petty terminal screen did not contain output')
     },
     close() {
       term.dispose()
@@ -112,7 +112,7 @@ function percentile(samples: number[], fraction: number): number {
 const engines = [
   ['xterm.js', xterm],
   ['ghostty-web raw WASM', legacy],
-  ['Tau GhosttyVt', tau],
+  ['Petty GhosttyVt', petty],
 ] as const
 const fixtures = [
   { name: '1MiB plain, 64KiB writes', data: fixture(1, false), chunk: 65536 },
@@ -128,10 +128,10 @@ console.log(
   `Headless VT ingestion only | Node ${process.version} | ${process.platform}/${process.arch}`,
 )
 console.log(
-  `WASM sizes: ghostty-web ${oldWasm.length} B, Tau ${newWasm.length} B | ${runs} measured runs + 1 warmup`,
+  `WASM sizes: ghostty-web ${oldWasm.length} B, Petty ${newWasm.length} B | ${runs} measured runs + 1 warmup`,
 )
 console.log(
-  'Terminal: 120x40, 10k scrollback for xterm and Tau; legacy default (cannot set via this ABI)',
+  'Terminal: 120x40, 10k scrollback for xterm and Petty; legacy default (cannot set via this ABI)',
 )
 console.log(
   'Timing: per-run fresh terminal, synchronous WASM write+copy+alloc/free; xterm write callback (async). Instantiation excluded.',

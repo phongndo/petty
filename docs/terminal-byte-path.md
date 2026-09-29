@@ -3,22 +3,22 @@
 ## Output
 
 ```text
-PTY master read (taud, Zig)
-  -> persistent event log + binary TASF stream frame
-  -> Unix socket -> TaudClient stream parser (Electron main)
-  -> TaudPtyBridge: posts the parser's exact-sized payload (Electron clones it) -> per-session MessagePortMain
+PTY master read (pettyd, Zig)
+  -> persistent event log + binary PTSF stream frame
+  -> Unix socket -> PettydClient stream parser (Electron main)
+  -> PettydPtyBridge: posts the parser's exact-sized payload (Electron clones it) -> per-session MessagePortMain
   -> preload: binary frame dispatch (bounded startup buffer if nobody subscribes)
   -> contextBridge callback -> renderer-owned Uint8Array
   -> sequenced writer: bounded batches of complete frames -> Ghostty WASM VT parser
   -> successful parse callback -> acknowledge highest applied sequence -> main releases backlog
-  -> Tau canvas renders Ghostty render-state frames on requestAnimationFrame
+  -> Petty canvas renders Ghostty render-state frames on requestAnimationFrame
 ```
 
 Each daemon output frame is one PTY read with its own sequence number. During a sustained burst (reads less than 2 ms apart that have already produced 8 KiB) the reader keeps reading for up to about a millisecond before publishing, so many small producer writes share one event-log frame, sequence number and stream frame instead of tripping main's unacknowledged-frame bound. The first read after idle, and the first read after terminal input, publish immediately. The search excerpt grows to twice its 1 MiB budget before being compacted to its newest 1 MiB, rather than being reread on every PTY read.
 
 Main validates each stream frame's CRC with native `zlib.crc32`. The parser reads a lone socket chunk in place, copies only an incomplete-frame remainder (so it never keeps a view into the caller's buffer), and copies each payload into its own exact-sized buffer; `Buffer.from` would return a view into Node's shared pool (64 KiB slabs in Electron) for payloads under 32 KiB.
 
-The write callback confirms Ghostty parser application, **not** physical display presentation. A failed parse triggers a new WASM terminal and daemon snapshot resynchronization; the writer retains a bounded later-output suffix until a snapshot applies, dropping it only if the queue limit is exceeded. A stale snapshot cannot advance the acknowledgement cursor past missing frames. The native daemon and browser build share the revision in [`scripts/ghostty-source.ts`](../scripts/ghostty-source.ts). The WASM build applies narrow, verified browser-only patches for inline Kitty graphics (no host file access); `taud` uses the same upstream C ABI without those patches.
+The write callback confirms Ghostty parser application, **not** physical display presentation. A failed parse triggers a new WASM terminal and daemon snapshot resynchronization; the writer retains a bounded later-output suffix until a snapshot applies, dropping it only if the queue limit is exceeded. A stale snapshot cannot advance the acknowledgement cursor past missing frames. The native daemon and browser build share the revision in [`scripts/ghostty-source.ts`](../scripts/ghostty-source.ts). The WASM build applies narrow, verified browser-only patches for inline Kitty graphics (no host file access); `pettyd` uses the same upstream C ABI without those patches.
 
 ## Ownership and allocation rules
 
@@ -33,7 +33,7 @@ The write callback confirms Ghostty parser application, **not** physical display
 
 ## Rendering
 
-`TauTerminal` draws at most once per animation frame, and only rows Ghostty reports dirty (plus cursor rows; everything on a resize, full-dirty frame or image change). Selection changes, scrolling and screen switches arrive from Ghostty as full-dirty frames, so the surface does not force its own full repaints. Cell extraction reuses one `DataView` until WASM memory grows, decodes packed cells without BigInt, interns color strings, and resolves each style id once per row (style ids are page-local; a row belongs to one page). The accessible viewport text is recomputed only for painted rows and written to the DOM only when it changes. Runs of letters, digits and spaces sharing color, weight and faintness are drawn with one `fillText` when the font's advance for those characters equals the cell width (checked per font variant; otherwise cells are drawn individually). Punctuation stays per cell because canvas cannot disable coding-font ligatures, and kerning is off; the surface test requires pixel-identical output against per-cell drawing.
+`PettyTerminal` draws at most once per animation frame, and only rows Ghostty reports dirty (plus cursor rows; everything on a resize, full-dirty frame or image change). Selection changes, scrolling and screen switches arrive from Ghostty as full-dirty frames, so the surface does not force its own full repaints. Cell extraction reuses one `DataView` until WASM memory grows, decodes packed cells without BigInt, interns color strings, and resolves each style id once per row (style ids are page-local; a row belongs to one page). The accessible viewport text is recomputed only for painted rows and written to the DOM only when it changes. Runs of letters, digits and spaces sharing color, weight and faintness are drawn with one `fillText` when the font's advance for those characters equals the cell width (checked per font variant; otherwise cells are drawn individually). Punctuation stays per cell because canvas cannot disable coding-font ligatures, and kerning is off; the surface test requires pixel-identical output against per-cell drawing.
 
 A pane whose canvas cannot show one cell (a parked hidden tab, or a collapsed layout) keeps parsing and acknowledging output but skips render-state reads and painting, and releases its canvas backing store. Ghostty's dirty state accumulates meanwhile; the first visible draw marks the render state fully dirty and re-reads every row, so a restored pane shows current output.
 
@@ -49,11 +49,11 @@ still propagate. Reload recovery continues to use a fresh daemon snapshot, not a
 ## Input
 
 ```text
-Tau terminal keyboard/mouse/paste encoders and Ghostty PTY-response callback (renderer)
+Petty terminal keyboard/mouse/paste encoders and Ghostty PTY-response callback (renderer)
   -> contextBridge API with primitive string + encoding
   -> preload's reusable TextEncoder (or binary-byte conversion)
   -> session MessagePort: cloned input buffer
-  -> main bridge -> TaudClient input frame -> Unix socket -> taud -> PTY
+  -> main bridge -> PettydClient input frame -> Unix socket -> pettyd -> PTY
 ```
 
 Input bypasses the output batching queue. Keep context isolation, sandboxing, and sender-bound channels; removing those boundaries is not an allocation optimization.
@@ -62,11 +62,11 @@ Input bypasses the output batching queue. Keep context isolation, sandboxing, an
 
 `pnpm test:persistence` covers the real preload dispatch using a mocked Electron transport, decoder lifetime/UTF-8 boundaries, startup buffering and overflow, mixed subscribers, writer ownership, batch ordering, acknowledgements, snapshot filtering, and disposal. The package smoke tests exercise actual Electron IPC; unit tests do not model contextBridge serialization costs.
 
-Surface correctness: `pnpm test:surface` bundles the actual `TauTerminal` into a sandboxed Electron renderer with the packaged Ghostty WASM. It needs a display (`DISPLAY` on Linux); for a headless Linux host, run under Xvfb (for example `Xvfb :97 -screen 0 1280x800x24 &` followed by `DISPLAY=:97 nix develop -c pnpm test:surface`, then stop Xvfb). CI runs this separately under Xvfb. Its browser checks exercise canvas pixels, accessible viewport text, Unicode, erase/SGR, alternate screen, resize, search, keyboard/IME/paste, title/PTY/clipboard effects, synchronized output, links, actual pointer selection and mouse reporting, scrollback, Kitty image pixels, reset and disposal. It uses an in-process HTTP fixture and a mocked `electronAPI`, not the packaged preload or daemon; it does not assert font-identical screenshots, platform IME behavior, all VT sequences, or hardware GPU composition. Keep it separate from `pnpm test` so headless unit checks do not silently depend on a display. Manual review on the actual supported display/OS is still required for appearance and platform input behavior.
+Surface correctness: `pnpm test:surface` bundles the actual `PettyTerminal` into a sandboxed Electron renderer with the packaged Ghostty WASM. It needs a display (`DISPLAY` on Linux); for a headless Linux host, run under Xvfb (for example `Xvfb :97 -screen 0 1280x800x24 &` followed by `DISPLAY=:97 nix develop -c pnpm test:surface`, then stop Xvfb). CI runs this separately under Xvfb. Its browser checks exercise canvas pixels, accessible viewport text, Unicode, erase/SGR, alternate screen, resize, search, keyboard/IME/paste, title/PTY/clipboard effects, synchronized output, links, actual pointer selection and mouse reporting, scrollback, Kitty image pixels, reset and disposal. It uses an in-process HTTP fixture and a mocked `electronAPI`, not the packaged preload or daemon; it does not assert font-identical screenshots, platform IME behavior, all VT sequences, or hardware GPU composition. Keep it separate from `pnpm test` so headless unit checks do not silently depend on a display. Manual review on the actual supported display/OS is still required for appearance and platform input behavior.
 
 For performance work distinguish:
 
 - Decoder/buffer construction counts and retained queue bytes: deterministic allocation probes.
-- Writer + Ghostty throughput: isolate the writer with the packaged Ghostty WASM and byte workload, and check final screen content. `pnpm bench:surface` does this for the production `TauTerminal` surface (parse, render-state extraction and canvas-command timings, frame cadence, input dispatch and echo-drawn latency under flood, hidden panes, idle, create/close memory) and can alternate against another source tree; see the header of [`surface-benchmark.ts`](../apps/desktop/bench/surface-benchmark.ts). `bench:terminal` and `bench:renderer` measure an xterm.js harness, not Tau's surface.
+- Writer + Ghostty throughput: isolate the writer with the packaged Ghostty WASM and byte workload, and check final screen content. `pnpm bench:surface` does this for the production `PettyTerminal` surface (parse, render-state extraction and canvas-command timings, frame cadence, input dispatch and echo-drawn latency under flood, hidden panes, idle, create/close memory) and can alternate against another source tree; see the header of [`surface-benchmark.ts`](../apps/desktop/bench/surface-benchmark.ts). `bench:terminal` and `bench:renderer` measure an xterm.js harness, not Petty's surface.
 - Packaged input/output smoke: checks transport and counters, not full terminal presentation throughput.
 - Frame presentation, idle CPU and RSS: use a real display/GPU; Xvfb does not establish hardware rendering performance. The benchmark commands and enforced smoke thresholds live in the root and desktop `package.json` files.
