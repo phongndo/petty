@@ -1,22 +1,22 @@
 {
-  "name": "@tau/daemon",
+  "name": "@petty/daemon",
   "version": "1.0.0",
   "private": true,
-  "description": "Tau persistence daemon",
+  "description": "Petty persistence daemon",
   "type": "module",
   "scripts": {
-    "build": "TAUD_OPTIMIZE=ReleaseFast tsx ../../scripts/taud.ts build",
-    "build:debug": "TAUD_OPTIMIZE=Debug tsx ../../scripts/taud.ts build",
-    "build:fast": "TAUD_OPTIMIZE=ReleaseFast tsx ../../scripts/taud.ts build",
-    "build:small": "TAUD_OPTIMIZE=ReleaseSmall tsx ../../scripts/taud.ts build",
-    "check": "tsx ../../scripts/taud.ts check",
+    "build": "PETTYD_OPTIMIZE=ReleaseFast tsx ../../scripts/pettyd.ts build",
+    "build:debug": "PETTYD_OPTIMIZE=Debug tsx ../../scripts/pettyd.ts build",
+    "build:fast": "PETTYD_OPTIMIZE=ReleaseFast tsx ../../scripts/pettyd.ts build",
+    "build:small": "PETTYD_OPTIMIZE=ReleaseSmall tsx ../../scripts/pettyd.ts build",
+    "check": "tsx ../../scripts/pettyd.ts check",
     "fmt": "tsx ../../scripts/zig-tools.ts fmt apps/daemon",
     "fmt:check": "tsx ../../scripts/zig-tools.ts fmt:check apps/daemon",
     "hardened:compile": "zig build test:compile -Dfuzz=true",
     "hardened:fmt": "zig build test:fmt",
-    "leak-check": "tsx ../../scripts/taud.ts leak-check",
+    "leak-check": "tsx ../../scripts/pettyd.ts leak-check",
     "lint": "tsx ../../scripts/zig-tools.ts lint apps/daemon",
     "lsp": "zls --version",
-    "test": "tsx ../../scripts/taud.ts test"
+    "test": "tsx ../../scripts/pettyd.ts test"
   }
 }

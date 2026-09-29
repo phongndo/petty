@@ -23,7 +23,7 @@ html {
   --hover: rgb(255 255 255 / 6%);
   --selected: rgb(255 255 255 / 7%);
   --surface: #26272a;
-  --tau-terminal-background: #151515;
+  --petty-terminal-background: #151515;
   background: var(--chrome);
   color: var(--text);
   font:
@@ -46,7 +46,7 @@ html[data-theme='light'] {
   --hover: rgb(24 35 55 / 6%);
   --selected: rgb(24 35 55 / 10%);
   --surface: #fff;
-  --tau-terminal-background: #fbfcfe;
+  --petty-terminal-background: #fbfcfe;
 }
 html[data-accent='violet'] {
   --accent: #b7a8d7;
@@ -79,7 +79,7 @@ input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.tau-shell {
+.petty-shell {
   display: flex;
   width: 100%;
   height: 100%;
@@ -276,7 +276,7 @@ input:focus-visible {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--tau-terminal-background);
+  background: var(--petty-terminal-background);
 }
 .topbar {
   display: flex;
@@ -375,7 +375,7 @@ input:focus-visible {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: var(--tau-terminal-background);
+  background: var(--petty-terminal-background);
 }
 .pane-tile {
   position: relative;
@@ -385,7 +385,7 @@ input:focus-visible {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--tau-terminal-background);
+  background: var(--petty-terminal-background);
 }
 .nested-tabs {
   display: flex;
@@ -472,7 +472,7 @@ input:focus-visible {
   width: 100%;
   height: 100%;
   padding: 7px 10px;
-  background: var(--tau-terminal-background);
+  background: var(--petty-terminal-background);
   contain: strict;
   will-change: transform;
   transform: translateZ(0);
@@ -480,7 +480,7 @@ input:focus-visible {
 }
 .terminal-surface,
 .terminal-runtime-wrapper,
-.terminal-surface .tau-native-terminal {
+.terminal-surface .petty-native-terminal {
   position: relative;
   width: 100%;
   height: 100%;

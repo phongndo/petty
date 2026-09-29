@@ -1,0 +1,12 @@
+pettyd_benchmark|metric|value|unit
+pettyd_startup|avg|6|ms
+pettyd_startup|min|5|ms
+pettyd_startup|max|9|ms
+pettyd_pty_spawn|avg|31|ms
+pettyd_pty_spawn|p50|31|ms
+pettyd_pty_spawn|p95|33|ms
+pettyd_pty_spawn|p99|34|ms
+pettyd_idle|rss|87|MB
+pettyd_idle|cpu|0.0|%
+pettyd_load|rss|95|MB
+pettyd_load|cpu|98.76666666666667|%

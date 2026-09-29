@@ -1,9 +1,9 @@
 import type { MosaicDirection } from './layout'
 import { Schema } from 'effect'
 import { createStore } from 'zustand/vanilla'
-import type { PaneFocusDirection } from '@tau/shared/app-command'
-import { PANE_LAYOUT_VERSION, type PaneLayoutData } from '@tau/shared/session'
-import type { MuxGraphSnapshot } from '@tau/shared/mux-graph'
+import type { PaneFocusDirection } from '@petty/shared/app-command'
+import { PANE_LAYOUT_VERSION, type PaneLayoutData } from '@petty/shared/session'
+import type { MuxGraphSnapshot } from '@petty/shared/mux-graph'
 import { sanitizeTerminalTitle } from '../osc-title'
 import {
   getFirstPaneId,
@@ -19,7 +19,7 @@ import {
   type PaneRect,
 } from './layout'
 
-export interface TauState {
+export interface PettyState {
   tabs: Tab[]
   workspaces: Workspace[]
   activeTabId: string | null
@@ -94,7 +94,7 @@ function extensionRecord(value: unknown): Record<string, unknown> {
 }
 
 function workspacesFromGraph(extensions: unknown, tabs: Tab[]): Workspace[] {
-  const raw = extensionRecord(extensions).tauWorkspaces
+  const raw = extensionRecord(extensions).pettyWorkspaces
   const saved = Array.isArray(raw)
     ? raw.filter(
         (item): item is Workspace =>
@@ -165,7 +165,7 @@ const PersistedPaneSchema = Schema.Struct({
   lastSessionId: Schema.optional(Schema.String),
 })
 
-const PersistedTauStateSchema = Schema.Struct({
+const PersistedPettyStateSchema = Schema.Struct({
   version: Schema.optional(Schema.Number),
   tabs: Schema.optional(Schema.Array(PersistedTabSchema)),
   activeTabId: Schema.optional(Schema.NullOr(Schema.String)),
@@ -222,7 +222,7 @@ function createTerminalTab(
 }
 
 function ensureDefaultShell(
-  state: Pick<TauState, 'tabs' | 'panes' | 'activeTabId' | 'activePaneId'>,
+  state: Pick<PettyState, 'tabs' | 'panes' | 'activeTabId' | 'activePaneId'>,
 ) {
   if (state.tabs.length > 0) return state
   const { tab, pane } = createTerminalTab(0)
@@ -418,7 +418,7 @@ function reorderTabs(tabs: Tab[]): Tab[] {
   return tabs.map((tab, index) => ({ ...tab, order: index }))
 }
 
-function bumpRev(state: TauState): number {
+function bumpRev(state: PettyState): number {
   return state.graphRev + 1
 }
 
@@ -429,7 +429,7 @@ const initialShell = ensureDefaultShell({
   activePaneId: null,
 })
 
-export const useTauStore = createStore<TauState>((set, get) => ({
+export const usePettyStore = createStore<PettyState>((set, get) => ({
   ...initialShell,
   workspaces: [
     {
@@ -443,7 +443,7 @@ export const useTauStore = createStore<TauState>((set, get) => ({
   graphExtensions: undefined,
 
   hydrateLayout(data) {
-    const decoded = Schema.decodeUnknownOption(PersistedTauStateSchema)(data)
+    const decoded = Schema.decodeUnknownOption(PersistedPettyStateSchema)(data)
     if (decoded._tag === 'None') {
       set({
         ...ensureDefaultShell({ tabs: [], panes: [], activeTabId: null, activePaneId: null }),
@@ -535,8 +535,8 @@ export const useTauStore = createStore<TauState>((set, get) => ({
       .map((tab) => ({
         id: tab.id,
         workspaceId:
-          typeof extensionRecord(tab.extensions).tauWorkspaceId === 'string'
-            ? (extensionRecord(tab.extensions).tauWorkspaceId as string)
+          typeof extensionRecord(tab.extensions).pettyWorkspaceId === 'string'
+            ? (extensionRecord(tab.extensions).pettyWorkspaceId as string)
             : DEFAULT_WORKSPACE_ID,
         name: tab.name,
         order: tab.order,
@@ -829,7 +829,7 @@ export const useTauStore = createStore<TauState>((set, get) => ({
       const tabs = state.tabs.map((tab) => {
         if (tab.id !== pane.tabId) return tab
         if (getFirstPaneId(tab.layout) !== paneId) return tab
-        return extensionRecord(tab.extensions).tauManualName ? tab : { ...tab, name: normalized }
+        return extensionRecord(tab.extensions).pettyManualName ? tab : { ...tab, name: normalized }
       })
       return { panes, tabs, graphRev: bumpRev(state) }
     })
@@ -853,8 +853,8 @@ export const useTauStore = createStore<TauState>((set, get) => ({
       tabs: state.tabs.map((tab) => {
         if (tab.id !== tabId) return tab
         const extensions = { ...extensionRecord(tab.extensions) }
-        if (normalized) extensions.tauManualName = normalized
-        else delete extensions.tauManualName
+        if (normalized) extensions.pettyManualName = normalized
+        else delete extensions.pettyManualName
         return { ...tab, name: normalized ?? 'Shell', extensions }
       }),
       graphRev: bumpRev(state),
@@ -938,7 +938,7 @@ export const useTauStore = createStore<TauState>((set, get) => ({
   },
 }))
 
-export function selectMuxGraphSnapshot(state: TauState): MuxGraphSnapshot {
+export function selectMuxGraphSnapshot(state: PettyState): MuxGraphSnapshot {
   return {
     schemaVersion: 1,
     graphRev: state.graphRev,
@@ -949,7 +949,7 @@ export function selectMuxGraphSnapshot(state: TauState): MuxGraphSnapshot {
       order: tab.order,
       root: tab.layout,
       activePaneId: tab.lastActivePaneId,
-      extensions: { ...extensionRecord(tab.extensions), tauWorkspaceId: tab.workspaceId },
+      extensions: { ...extensionRecord(tab.extensions), pettyWorkspaceId: tab.workspaceId },
     })),
     panes: state.panes.map((pane) => ({
       id: pane.id,
@@ -964,12 +964,12 @@ export function selectMuxGraphSnapshot(state: TauState): MuxGraphSnapshot {
     })),
     activeTabId: state.activeTabId,
     activePaneId: state.activePaneId,
-    extensions: { ...extensionRecord(state.graphExtensions), tauWorkspaces: state.workspaces },
+    extensions: { ...extensionRecord(state.graphExtensions), pettyWorkspaces: state.workspaces },
   }
 }
 
 /** Legacy export used only by migration tests; daemon mux graph is authoritative. */
-export function selectPaneLayoutData(state: TauState): PaneLayoutData {
+export function selectPaneLayoutData(state: PettyState): PaneLayoutData {
   return {
     version: PANE_LAYOUT_VERSION,
     tabs: state.tabs.map((tab) => ({

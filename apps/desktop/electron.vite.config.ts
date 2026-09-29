@@ -13,41 +13,41 @@ import solid from 'vite-plugin-solid'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 
 /**
- * Bundle the built taud binary beside Electron's main output so production
+ * Bundle the built pettyd binary beside Electron's main output so production
  * builds do not depend on a source-tree-relative Zig artifact.
  */
-function copyTaudBinary() {
+function copyPettydBinary() {
   let outDir = ''
 
   return {
-    name: 'copy-taud-binary',
+    name: 'copy-pettyd-binary',
     configResolved(config: any) {
       outDir = config.build.outDir
     },
     closeBundle() {
-      if (process.env.TAUD_SKIP_NATIVE === '1') {
-        console.warn('[copy-taud-binary] Skipping taud copy; TAUD_SKIP_NATIVE=1')
+      if (process.env.PETTYD_SKIP_NATIVE === '1') {
+        console.warn('[copy-pettyd-binary] Skipping pettyd copy; PETTYD_SKIP_NATIVE=1')
         return
       }
 
       if (process.platform === 'win32') {
-        console.warn('[copy-taud-binary] Skipping taud copy on Windows; taud is POSIX-only')
+        console.warn('[copy-pettyd-binary] Skipping pettyd copy on Windows; pettyd is POSIX-only')
         return
       }
 
-      const exeName = 'taud'
-      const taudSource = resolve(__dirname, '../daemon/zig-out/bin', exeName)
-      const taudDestDir = resolve(outDir, '../bin')
-      const taudDest = resolve(taudDestDir, exeName)
+      const exeName = 'pettyd'
+      const pettydSource = resolve(__dirname, '../daemon/zig-out/bin', exeName)
+      const pettydDestDir = resolve(outDir, '../bin')
+      const pettydDest = resolve(pettydDestDir, exeName)
 
-      if (!existsSync(taudSource)) {
-        throw new Error(`[copy-taud-binary] taud source not found: ${taudSource}`)
+      if (!existsSync(pettydSource)) {
+        throw new Error(`[copy-pettyd-binary] pettyd source not found: ${pettydSource}`)
       }
 
-      mkdirSync(taudDestDir, { recursive: true })
-      copyFileSync(taudSource, taudDest)
-      chmodSync(taudDest, 0o755)
-      console.log('[copy-taud-binary] Copied taud to', taudDest)
+      mkdirSync(pettydDestDir, { recursive: true })
+      copyFileSync(pettydSource, pettydDest)
+      chmodSync(pettydDest, 0o755)
+      console.log('[copy-pettyd-binary] Copied pettyd to', pettydDest)
     },
   }
 }
@@ -129,16 +129,16 @@ function copyDirectory(source: string, destination: string) {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin(), copyTaudBinary()],
+    plugins: [externalizeDepsPlugin(), copyPettydBinary()],
     build: {
       sourcemap: false,
-      // node-pty has been removed — taud owns PTY lifecycle
+      // node-pty has been removed — pettyd owns PTY lifecycle
     },
   },
   preload: {
     // Sandbox preloads cannot require arbitrary npm modules; bundle validation schemas.
     plugins: [],
-    ssr: { noExternal: ['effect', '@tau/shared'] },
+    ssr: { noExternal: ['effect', '@petty/shared'] },
     build: {
       sourcemap: false,
       rollupOptions: {

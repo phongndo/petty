@@ -82,7 +82,7 @@ pub fn runForever(self: anytype) !void {
     assert(std.posix.S.ISSOCK(socket_stat.mode));
     assert(socket_stat.uid == std.c.geteuid());
 
-    std.log.info("taud listening on {s}", .{self.config.socket_path});
+    std.log.info("pettyd listening on {s}", .{self.config.socket_path});
     std.log.info("control RPC, PTY driver, event log, and binary attach stream enabled", .{});
 
     const ConnectionContext = struct {

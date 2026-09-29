@@ -1,5 +1,5 @@
 const std = @import("std");
-const taud = @import("taud");
+const pettyd = @import("pettyd");
 
 pub fn main(init: std.process.Init) !void {
     if (debugAllocatorEnabled()) {
@@ -33,10 +33,10 @@ fn realMain(allocator: std.mem.Allocator, process_args: std.process.Args) !void 
         if (std.mem.eql(u8, arg, "--check")) check = true;
     }
 
-    var config = try taud.daemon.Config.fromHome(allocator, home);
+    var config = try pettyd.daemon.Config.fromHome(allocator, home);
     defer config.deinit(allocator);
 
-    var daemon = taud.daemon.Daemon.init(allocator, config);
+    var daemon = pettyd.daemon.Daemon.init(allocator, config);
     defer daemon.deinit();
 
     if (print_config) {
@@ -52,6 +52,6 @@ fn realMain(allocator: std.mem.Allocator, process_args: std.process.Args) !void 
 }
 
 fn debugAllocatorEnabled() bool {
-    const value = std.c.getenv("TAUD_DEBUG_ALLOC") orelse return false;
+    const value = std.c.getenv("PETTYD_DEBUG_ALLOC") orelse return false;
     return std.mem.eql(u8, std.mem.span(value), "1");
 }

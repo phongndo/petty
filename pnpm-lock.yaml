@@ -211,7 +211,7 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@tau/shared':
+      '@petty/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       effect:

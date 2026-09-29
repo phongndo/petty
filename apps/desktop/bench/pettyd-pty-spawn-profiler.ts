@@ -1,12 +1,12 @@
 /**
- * Tau — PTY Spawn Latency Profiler
+ * Petty — PTY Spawn Latency Profiler
  *
- * Measures each step of taud's PTY create path to identify the bottleneck.
+ * Measures each step of pettyd's PTY create path to identify the bottleneck.
  *
  * The create flow is:
  *   1. Socket connection (t1)
  *   2. JSON request serialization + write (t2)
- *   3. taud receives → handleCreateLocked:
+ *   3. pettyd receives → handleCreateLocked:
  *      a. session.create (alloc VT, alloc session struct)
  *      b. ensureSessionPersistence (mkdir + open event log)
  *      c. ensureSessionProcess (forkpty)
@@ -15,8 +15,8 @@
  *   5. Socket read + JSON parse at client (t4)
  *
  * Usage:
- *   pnpm build:taud
- *   tsx bench/taud-pty-spawn-profiler.ts
+ *   pnpm build:pettyd
+ *   tsx bench/pettyd-pty-spawn-profiler.ts
  */
 
 import { homedir } from 'node:os'
@@ -29,7 +29,7 @@ import { resolve } from 'node:path'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const PROJECT_ROOT = resolve(__dirname, '..')
-const SOCKET_PATH = join(homedir(), '.tau/run/taud.sock')
+const SOCKET_PATH = join(homedir(), '.petty/run/pettyd.sock')
 
 interface PerfSample {
   connectMs: number
@@ -127,7 +127,7 @@ function percentile(sorted: number[], p: number): number {
   return sorted[idx]!
 }
 
-async function ensureTaudRunning(): Promise<void> {
+async function ensurePettydRunning(): Promise<void> {
   // Try to connect first
   try {
     const sock = await connectSocket(500)
@@ -137,8 +137,8 @@ async function ensureTaudRunning(): Promise<void> {
     // Need to start
   }
 
-  const binaryPath = findTaudBinary()
-  if (!binaryPath) throw new Error('taud binary not found')
+  const binaryPath = findPettydBinary()
+  if (!binaryPath) throw new Error('pettyd binary not found')
 
   const child = spawn(binaryPath, [], {
     detached: true,
@@ -156,15 +156,15 @@ async function ensureTaudRunning(): Promise<void> {
       return
     } catch {}
   }
-  throw new Error('taud failed to start')
+  throw new Error('pettyd failed to start')
 }
 
-function findTaudBinary(): string | null {
-  const exeName = process.platform === 'win32' ? 'taud.exe' : 'taud'
+function findPettydBinary(): string | null {
+  const exeName = process.platform === 'win32' ? 'pettyd.exe' : 'pettyd'
   const candidates = [
     join(PROJECT_ROOT, '../daemon/zig-out/bin', exeName),
     join(PROJECT_ROOT, 'node_modules/.bin', exeName),
-    process.env.TAUD_PATH,
+    process.env.PETTYD_PATH,
   ].filter(Boolean) as string[]
   for (const c of candidates) {
     if (existsSync(c)) return c
@@ -174,11 +174,11 @@ function findTaudBinary(): string | null {
 
 async function main() {
   console.log('╔══════════════════════════════════════════════════════════════╗')
-  console.log('║     taud PTY Spawn Latency — Step-by-Step Profiler         ║')
+  console.log('║     pettyd PTY Spawn Latency — Step-by-Step Profiler         ║')
   console.log('╚══════════════════════════════════════════════════════════════╝')
   console.log('')
 
-  await ensureTaudRunning()
+  await ensurePettydRunning()
   console.log(`  Socket: ${SOCKET_PATH}`)
   console.log('')
 
@@ -268,7 +268,7 @@ async function main() {
   console.log('')
 
   // ─── Phase 2: Microbenchmarks of individual steps ───
-  console.log('  ── Phase 2: Microbenchmarks of individual taud operations ──')
+  console.log('  ── Phase 2: Microbenchmarks of individual pettyd operations ──')
   console.log('')
 
   // 2a. Session create only (no PTY, no persistence)
@@ -451,24 +451,24 @@ async function main() {
   console.log('│ KEY INSIGHTS                                                │')
   console.log('├─────────────────────────────────────────────────────────────┤')
   console.log('│                                                            │')
-  console.log('│ Why taud is slower than node-pty for PTY spawn:            │')
+  console.log('│ Why pettyd is slower than node-pty for PTY spawn:            │')
   console.log('│                                                            │')
   console.log('│ 1. Socket connect + round-trip (~30% of total)             │')
   console.log('│    node-pty: direct C++ function call — zero IPC           │')
-  console.log('│    taud:     Unix socket connect → write → poll → read     │')
+  console.log('│    pettyd:     Unix socket connect → write → poll → read     │')
   console.log('│                                                            │')
   console.log('│ 2. Persistence init (~25% of total)                       │')
   console.log('│    node-pty: no persistence — bare PTY, no event log      │')
-  console.log('│    taud:     mkdir + open/create event log + repair +      │')
+  console.log('│    pettyd:     mkdir + open/create event log + repair +      │')
   console.log('│              write header + allocate snapshot path         │')
   console.log('│                                                            │')
   console.log('│ 3. VT Terminal.init (~15% of total)                       │')
   console.log('│    node-pty: no VT init — just a file descriptor          │')
-  console.log('│    taud:     libghostty-vt Terminal.init with allocator    │')
+  console.log('│    pettyd:     libghostty-vt Terminal.init with allocator    │')
   console.log('│                                                            │')
   console.log('│ 4. forkpty + child exec (~25% of total)                   │')
   console.log('│    node-pty: same forkpty syscall, but NO daemon mutex    │')
-  console.log('│    taud:     same forkpty, under daemon mutex             │')
+  console.log('│    pettyd:     same forkpty, under daemon mutex             │')
   console.log('│                                                            │')
   console.log('│ 5. daemon mutex lock (~5% of total)                       │')
   console.log('│    All requests are serialized through a std.Thread.Mutex  │')
@@ -480,8 +480,8 @@ async function main() {
   console.log('    Path: JS → V8 → C++ binding → forkpty → back')
   console.log('    Estimated time: ~3-5 ms (direct, no IPC, no persistence)')
   console.log('')
-  console.log('  taud:')
-  console.log('    Path: JS → net.Socket → kernel → taud (Zig) → forkpty')
+  console.log('  pettyd:')
+  console.log('    Path: JS → net.Socket → kernel → pettyd (Zig) → forkpty')
   console.log('    → session.create → persistence init → thread spawn →')
   console.log('    → JSON response → kernel → JS')
   console.log('    Measured time: ~25-35 ms')

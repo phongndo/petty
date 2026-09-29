@@ -1,7 +1,7 @@
 /**
- * Tau - attach/replay budget for taud.
+ * Petty - attach/replay budget for pettyd.
  *
- * Launches a managed taud, creates a PTY session that emits output before any
+ * Launches a managed pettyd, creates a PTY session that emits output before any
  * subscriber attaches, waits until the daemon reports a pending replay backlog,
  * then measures attach response, current-screen snapshot, and 1 MiB replay time.
  */
@@ -12,13 +12,13 @@ import net from 'node:net'
 import { homedir, platform, tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolveTauStoragePaths } from '@tau/shared/storage-path'
-import { TaudStreamFrameKind } from '@tau/shared/taud-protocol'
-import { TaudStreamFrameParser } from '../src/main/taud-stream'
+import { resolvePettyStoragePaths } from '@petty/shared/storage-path'
+import { PettydStreamFrameKind } from '@petty/shared/pettyd-protocol'
+import { PettydStreamFrameParser } from '../src/main/pettyd-stream'
 
 type ControlResponse = Record<string, unknown>
 
-type ManagedTaud = {
+type ManagedPettyd = {
   readonly home: string
   readonly socketPath: string
   readonly child: ChildProcess
@@ -29,14 +29,14 @@ const benchDir = dirname(fileURLToPath(import.meta.url))
 const desktopRoot = resolve(benchDir, '..')
 const repoRoot = resolve(desktopRoot, '../..')
 
-const TARGET_REPLAY_BYTES = positiveInt(process.env.TAU_ATTACH_REPLAY_BYTES, 1024 * 1024)
-const ENFORCE = process.env.TAU_ATTACH_REPLAY_ENFORCE === '1'
-const MAX_ATTACH_RESPONSE_MS = nonNegativeInt(process.env.TAU_ATTACH_MAX_RESPONSE_MS, 250)
-const MAX_SNAPSHOT_MS = nonNegativeInt(process.env.TAU_ATTACH_MAX_SNAPSHOT_MS, 100)
-const MAX_REPLAY_MS = nonNegativeInt(process.env.TAU_ATTACH_MAX_REPLAY_MS, 500)
+const TARGET_REPLAY_BYTES = positiveInt(process.env.PETTY_ATTACH_REPLAY_BYTES, 1024 * 1024)
+const ENFORCE = process.env.PETTY_ATTACH_REPLAY_ENFORCE === '1'
+const MAX_ATTACH_RESPONSE_MS = nonNegativeInt(process.env.PETTY_ATTACH_MAX_RESPONSE_MS, 250)
+const MAX_SNAPSHOT_MS = nonNegativeInt(process.env.PETTY_ATTACH_MAX_SNAPSHOT_MS, 100)
+const MAX_REPLAY_MS = nonNegativeInt(process.env.PETTY_ATTACH_MAX_REPLAY_MS, 500)
 
 let socketPath =
-  process.env.TAUD_SOCKET_PATH || resolveTauStoragePaths(process.env.HOME || homedir()).socket
+  process.env.PETTYD_SOCKET_PATH || resolvePettyStoragePaths(process.env.HOME || homedir()).socket
 
 function positiveInt(raw: string | undefined, fallback: number): number {
   if (!raw) return fallback
@@ -58,10 +58,10 @@ function now(): number {
   return performance.now()
 }
 
-function findTaudBinary(): string | null {
-  const exeName = process.platform === 'win32' ? 'taud.exe' : 'taud'
+function findPettydBinary(): string | null {
+  const exeName = process.platform === 'win32' ? 'pettyd.exe' : 'pettyd'
   const candidates = [
-    process.env.TAUD_PATH,
+    process.env.PETTYD_PATH,
     resolve(desktopRoot, 'out/bin', exeName),
     resolve(repoRoot, 'apps/daemon/zig-out/bin', exeName),
   ].filter(Boolean) as string[]
@@ -77,7 +77,7 @@ function connectSocket(timeoutMs = 3000): Promise<net.Socket> {
     const socket = net.createConnection(socketPath)
     const timer = setTimeout(() => {
       socket.destroy()
-      rejectSocket(new Error(`Timed out connecting to taud at ${socketPath}`))
+      rejectSocket(new Error(`Timed out connecting to pettyd at ${socketPath}`))
     }, timeoutMs)
     socket.once('connect', () => {
       clearTimeout(timer)
@@ -102,7 +102,7 @@ async function writeAll(socket: net.Socket, payload: string, context: string): P
     }
     const onClose = () => {
       cleanup()
-      rejectWrite(new Error(`taud closed socket while writing ${context}`))
+      rejectWrite(new Error(`pettyd closed socket while writing ${context}`))
     }
     socket.once('error', onError)
     socket.once('close', onClose)
@@ -122,7 +122,7 @@ function sendJson(
     let buffered = Buffer.alloc(0)
     const timer = setTimeout(() => {
       cleanup()
-      rejectResponse(new Error('Timeout waiting for taud response'))
+      rejectResponse(new Error('Timeout waiting for pettyd response'))
     }, 5000)
 
     const cleanup = () => {
@@ -137,7 +137,7 @@ function sendJson(
     }
     const onClose = () => {
       cleanup()
-      rejectResponse(new Error('taud closed socket before responding'))
+      rejectResponse(new Error('pettyd closed socket before responding'))
     }
     const onData = (chunk: Buffer) => {
       buffered = buffered.length === 0 ? Buffer.from(chunk) : Buffer.concat([buffered, chunk])
@@ -148,7 +148,7 @@ function sendJson(
         const response = JSON.parse(buffered.subarray(0, newline).toString('utf8'))
         resolveResponse({ response, tail: buffered.subarray(newline + 1) })
       } catch {
-        rejectResponse(new Error('Failed to parse taud response'))
+        rejectResponse(new Error('Failed to parse pettyd response'))
       }
     }
 
@@ -167,24 +167,24 @@ async function closeSocket(socket: net.Socket): Promise<void> {
   socket.destroy()
 }
 
-async function startManagedTaud(): Promise<ManagedTaud> {
-  const binaryPath = findTaudBinary()
-  if (!binaryPath) throw new Error('taud binary not found; run pnpm build')
+async function startManagedPettyd(): Promise<ManagedPettyd> {
+  const binaryPath = findPettydBinary()
+  if (!binaryPath) throw new Error('pettyd binary not found; run pnpm build')
 
-  const home = mkdtempSync(resolve(tmpdir(), 'tau-attach-replay-bench-'))
-  socketPath = resolveTauStoragePaths(home).socket
+  const home = mkdtempSync(resolve(tmpdir(), 'petty-attach-replay-bench-'))
+  socketPath = resolvePettyStoragePaths(home).socket
   const adapters = resolve(desktopRoot, 'out/adapters')
   const child = spawn(binaryPath, [], {
     cwd: dirname(binaryPath),
     env: {
       ...process.env,
       HOME: home,
-      TAUD_ADAPTER_DIR: adapters,
+      PETTYD_ADAPTER_DIR: adapters,
     },
     stdio: ['ignore', 'ignore', 'pipe'],
   })
   child.stderr?.on('data', (chunk: Buffer) => {
-    process.stderr.write(`[taud stderr] ${chunk.toString('utf8')}`)
+    process.stderr.write(`[pettyd stderr] ${chunk.toString('utf8')}`)
   })
 
   for (let attempt = 0; attempt < 80; attempt++) {
@@ -211,7 +211,7 @@ async function startManagedTaud(): Promise<ManagedTaud> {
     } catch {
       if (child.exitCode !== null) {
         rmSync(home, { recursive: true, force: true })
-        throw new Error(`managed taud exited before socket became ready: ${child.exitCode}`)
+        throw new Error(`managed pettyd exited before socket became ready: ${child.exitCode}`)
       }
       await sleep(50)
     }
@@ -219,7 +219,7 @@ async function startManagedTaud(): Promise<ManagedTaud> {
 
   child.kill('SIGKILL')
   rmSync(home, { recursive: true, force: true })
-  throw new Error('managed taud failed to start')
+  throw new Error('managed pettyd failed to start')
 }
 
 async function control(request: Record<string, unknown>): Promise<ControlResponse> {
@@ -264,7 +264,7 @@ async function killSession(sessionId: string): Promise<void> {
   try {
     await control({ type: 'kill', id: 'attach-kill', sessionId })
   } catch {
-    // Best-effort cleanup. Managed taud teardown is the final safety net.
+    // Best-effort cleanup. Managed pettyd teardown is the final safety net.
   }
 }
 
@@ -274,12 +274,12 @@ function enforceBudget(label: string, value: number, max: number): void {
 }
 
 async function runAttachReplayBenchmark(): Promise<void> {
-  const managed = await startManagedTaud()
+  const managed = await startManagedPettyd()
   const sessionId = `attach-replay-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
   let streamSocket: net.Socket | null = null
 
   try {
-    console.log('Tau attach/replay benchmark (taud)')
+    console.log('Petty attach/replay benchmark (pettyd)')
     console.log('')
     console.log(`  Target replay bytes: ${TARGET_REPLAY_BYTES}`)
     console.log(`  Socket:              ${socketPath}`)
@@ -327,7 +327,7 @@ async function runAttachReplayBenchmark(): Promise<void> {
       )
     }
 
-    const parser = new TaudStreamFrameParser()
+    const parser = new PettydStreamFrameParser()
     let snapshotMs: number | null = null
     let replayBytes = 0
     let replayMs: number | null = null
@@ -335,10 +335,10 @@ async function runAttachReplayBenchmark(): Promise<void> {
     const consume = (chunk: Buffer) => {
       for (const frame of parser.push(chunk)) {
         if (frame.sessionId !== sessionId) continue
-        if (frame.kind === TaudStreamFrameKind.Snapshot && snapshotMs === null) {
+        if (frame.kind === PettydStreamFrameKind.Snapshot && snapshotMs === null) {
           snapshotMs = now() - attachStartedAt
         }
-        if (frame.kind === TaudStreamFrameKind.Output) {
+        if (frame.kind === PettydStreamFrameKind.Output) {
           replayBytes += frame.payload.length
           if (replayBytes >= TARGET_REPLAY_BYTES && replayMs === null) {
             replayMs = now() - attachStartedAt
@@ -377,7 +377,7 @@ async function runAttachReplayBenchmark(): Promise<void> {
       }
       const onClose = () => {
         cleanup()
-        rejectReplay(new Error('taud stream closed before replay completed'))
+        rejectReplay(new Error('pettyd stream closed before replay completed'))
       }
 
       if (snapshotMs !== null && replayMs !== null) {

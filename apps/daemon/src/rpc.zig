@@ -283,7 +283,7 @@ pub const StreamKind = enum(u16) {
     }
 };
 
-pub const stream_magic: u32 = 0x54415346; // TASF
+pub const stream_magic: u32 = 0x50545346; // PTSF
 pub const stream_version: u16 = 1;
 pub const stream_session_id_size: usize = 64;
 const stream_session_id_offset: usize = 8;
@@ -558,7 +558,7 @@ test "control response trace wrapper preserves one-line JSON" {
 fn readProtocolFixtureAlloc(allocator: std.mem.Allocator, name: []const u8) ![]u8 {
     const path = try std.fmt.allocPrint(
         allocator,
-        "../../packages/shared/fixtures/taud-protocol/{s}",
+        "../../packages/shared/fixtures/pettyd-protocol/{s}",
         .{name},
     );
     defer allocator.free(path);
@@ -682,7 +682,7 @@ test "control attach and error responses match shared golden fixtures" {
         .stream_id = "session-1",
         .pid = 123,
         .status = "live",
-        .cwd = "/tmp/tau",
+        .cwd = "/tmp/petty",
         .cols = 80,
         .rows = 24,
         .last_seq = 4,
@@ -756,7 +756,7 @@ fn responseJsonForAllocationFailure(allocator: std.mem.Allocator) !void {
         .stream_id = "session-oom",
         .pid = 123,
         .status = "live",
-        .cwd = "/tmp/tau-rpc-oom",
+        .cwd = "/tmp/petty-rpc-oom",
         .cols = 80,
         .rows = 24,
         .last_seq = 9,

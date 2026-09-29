@@ -1,5 +1,5 @@
 {
-  description = "Tau Terminal — A super-performant terminal emulator with Ghostty WASM";
+  description = "Petty Terminal — A super-performant terminal emulator with Ghostty WASM";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -72,7 +72,7 @@
       {
         # ── Dev shell (nix develop) ──
         devShells.default = pkgs.mkShell {
-          name = "tau";
+          name = "petty";
 
           # Build-time dependencies
           nativeBuildInputs = (with pkgs; [
@@ -80,7 +80,7 @@
             nixd # Nix language server
             pnpm # Native pnpm pinned above (the let binding takes precedence over pkgs.pnpm)
             unzip # Electron's installer extracts its downloaded runtime with unzip
-            zig_0_16 # taud daemon + pinned Ghostty native/WASM builds
+            zig_0_16 # pettyd daemon + pinned Ghostty native/WASM builds
             zls_0_16 # Zig language server matching Zig 0.16.x
             nixpkgs-fmt # nix fmt / CI format check
           ]) ++ pkgs.lib.optionals pkgs.stdenv.isLinux (with pkgs; [
@@ -135,7 +135,7 @@
               export LIBGL_DRIVERS_PATH="${linuxElectronMesa}/lib/dri''${LIBGL_DRIVERS_PATH:+:$LIBGL_DRIVERS_PATH}"
             fi
 
-            echo "🖥  Tau Terminal dev shell"
+            echo "🖥  Petty Terminal dev shell"
             echo "   node:  $(node --version)"
             echo "   pnpm:  $(pnpm --version)"
             echo "   zig:   $(zig version)"
@@ -149,7 +149,7 @@
           '';
         };
 
-        checks.pnpm-runtime = pkgs.runCommand "tau-pnpm-runtime" { } ''
+        checks.pnpm-runtime = pkgs.runCommand "petty-pnpm-runtime" { } ''
           export HOME="$TMPDIR"
           test "$(${pnpm}/bin/pnpm --version)" = '${pnpmVersion}'
           touch $out

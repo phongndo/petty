@@ -49,7 +49,7 @@ export function inputBoostPriority(lastInputAt: () => number): () => TaskPriorit
 }
 
 const OUTPUT_WRITE_QUEUE_DROP_NOTICE =
-  '\r\n\x1b[33m[Tau dropped terminal output because the renderer write queue exceeded 4 MiB]\x1b[0m\r\n'
+  '\r\n\x1b[33m[Petty dropped terminal output because the renderer write queue exceeded 4 MiB]\x1b[0m\r\n'
 
 export type TaskPriority = 'user-visible' | 'background'
 

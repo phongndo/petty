@@ -1,24 +1,24 @@
 import { crc32 } from 'node:zlib'
 import {
-  TAUD_STREAM_HEADER_SIZE,
-  TAUD_STREAM_MAGIC,
-  TAUD_STREAM_MAX_PAYLOAD_BYTES,
-  TAUD_STREAM_SESSION_ID_SIZE,
-  TAUD_STREAM_VERSION,
-  TaudStreamFrameKind,
-  type TaudStreamFrameKind as TaudStreamFrameKindValue,
-} from '@tau/shared/taud-protocol'
+  PETTYD_STREAM_HEADER_SIZE,
+  PETTYD_STREAM_MAGIC,
+  PETTYD_STREAM_MAX_PAYLOAD_BYTES,
+  PETTYD_STREAM_SESSION_ID_SIZE,
+  PETTYD_STREAM_VERSION,
+  PettydStreamFrameKind,
+  type PettydStreamFrameKind as PettydStreamFrameKindValue,
+} from '@petty/shared/pettyd-protocol'
 
 const SESSION_ID_OFFSET = 8
-const SEQ_OFFSET = SESSION_ID_OFFSET + TAUD_STREAM_SESSION_ID_SIZE
+const SEQ_OFFSET = SESSION_ID_OFFSET + PETTYD_STREAM_SESSION_ID_SIZE
 const LENGTH_OFFSET = SEQ_OFFSET + 8
 const CRC_OFFSET = LENGTH_OFFSET + 4
-const FRAME_MAGIC_BYTES = Buffer.from([0x54, 0x41, 0x53, 0x46])
+const FRAME_MAGIC_BYTES = Buffer.from([0x50, 0x54, 0x53, 0x46])
 
-export const TAUD_STREAM_PAYLOAD_LENGTH_OFFSET = LENGTH_OFFSET
+export const PETTYD_STREAM_PAYLOAD_LENGTH_OFFSET = LENGTH_OFFSET
 
-export type TaudParsedStreamFrame = {
-  readonly kind: TaudStreamFrameKindValue
+export type PettydParsedStreamFrame = {
+  readonly kind: PettydStreamFrameKindValue
   readonly sessionId: string
   readonly seq: number
   readonly payload: Buffer
@@ -26,44 +26,44 @@ export type TaudParsedStreamFrame = {
 
 /** CRC-32 (IEEE) of a stream payload. Native zlib runs ~50x faster than a JS table loop and
  * keeps frame validation off the main-process event loop that also forwards terminal input. */
-export function taudCrc32(buffer: Buffer | Uint8Array): number {
+export function pettydCrc32(buffer: Buffer | Uint8Array): number {
   return crc32(buffer)
 }
 
-export function encodeTaudStreamFrame(input: {
-  readonly kind: TaudStreamFrameKindValue
+export function encodePettydStreamFrame(input: {
+  readonly kind: PettydStreamFrameKindValue
   readonly sessionId: string
   readonly seq: bigint | number
   readonly payload?: Buffer | Uint8Array | string
 }): Buffer {
   if (
     input.sessionId.length === 0 ||
-    Buffer.byteLength(input.sessionId) > TAUD_STREAM_SESSION_ID_SIZE
+    Buffer.byteLength(input.sessionId) > PETTYD_STREAM_SESSION_ID_SIZE
   ) {
-    throw new Error('Invalid taud stream session id')
+    throw new Error('Invalid pettyd stream session id')
   }
 
   const payload =
     typeof input.payload === 'string'
       ? Buffer.from(input.payload, 'utf8')
       : Buffer.from(input.payload ?? [])
-  if (payload.length > TAUD_STREAM_MAX_PAYLOAD_BYTES) {
-    throw new Error('Taud stream payload too large')
+  if (payload.length > PETTYD_STREAM_MAX_PAYLOAD_BYTES) {
+    throw new Error('Pettyd stream payload too large')
   }
 
-  const frame = Buffer.alloc(TAUD_STREAM_HEADER_SIZE + payload.length)
-  frame.writeUInt32BE(TAUD_STREAM_MAGIC, 0)
-  frame.writeUInt16BE(TAUD_STREAM_VERSION, 4)
+  const frame = Buffer.alloc(PETTYD_STREAM_HEADER_SIZE + payload.length)
+  frame.writeUInt32BE(PETTYD_STREAM_MAGIC, 0)
+  frame.writeUInt16BE(PETTYD_STREAM_VERSION, 4)
   frame.writeUInt16BE(input.kind, 6)
-  frame.write(input.sessionId, SESSION_ID_OFFSET, TAUD_STREAM_SESSION_ID_SIZE, 'utf8')
+  frame.write(input.sessionId, SESSION_ID_OFFSET, PETTYD_STREAM_SESSION_ID_SIZE, 'utf8')
   frame.writeBigUInt64BE(BigInt(input.seq), SEQ_OFFSET)
   frame.writeUInt32BE(payload.length, LENGTH_OFFSET)
-  frame.writeUInt32BE(taudCrc32(payload), CRC_OFFSET)
-  payload.copy(frame, TAUD_STREAM_HEADER_SIZE)
+  frame.writeUInt32BE(pettydCrc32(payload), CRC_OFFSET)
+  payload.copy(frame, PETTYD_STREAM_HEADER_SIZE)
   return frame
 }
 
-export function encodeTaudResizePayload(cols: number, rows: number): Buffer {
+export function encodePettydResizePayload(cols: number, rows: number): Buffer {
   if (
     !Number.isInteger(cols) ||
     !Number.isInteger(rows) ||
@@ -72,7 +72,7 @@ export function encodeTaudResizePayload(cols: number, rows: number): Buffer {
     cols > 0xffff ||
     rows > 0xffff
   ) {
-    throw new Error('Invalid taud resize dimensions')
+    throw new Error('Invalid pettyd resize dimensions')
   }
 
   const payload = Buffer.alloc(4)
@@ -81,7 +81,7 @@ export function encodeTaudResizePayload(cols: number, rows: number): Buffer {
   return payload
 }
 
-export function decodeTaudResizePayload(payload: Buffer): { cols: number; rows: number } | null {
+export function decodePettydResizePayload(payload: Buffer): { cols: number; rows: number } | null {
   if (payload.length !== 4) return null
   const cols = payload.readUInt16BE(0)
   const rows = payload.readUInt16BE(2)
@@ -89,7 +89,7 @@ export function decodeTaudResizePayload(payload: Buffer): { cols: number; rows: 
   return { cols, rows }
 }
 
-export function decodeTaudExitPayload(
+export function decodePettydExitPayload(
   payload: Buffer,
 ): { exitCode: number; signal?: number } | null {
   if (payload.length !== 8) return null
@@ -98,13 +98,13 @@ export function decodeTaudExitPayload(
   return { exitCode, ...(signal === 0 ? {} : { signal }) }
 }
 
-function isKnownKind(kind: number): kind is TaudStreamFrameKindValue {
+function isKnownKind(kind: number): kind is PettydStreamFrameKindValue {
   return (
-    kind === TaudStreamFrameKind.Output ||
-    kind === TaudStreamFrameKind.Input ||
-    kind === TaudStreamFrameKind.Resize ||
-    kind === TaudStreamFrameKind.Snapshot ||
-    kind === TaudStreamFrameKind.Exit
+    kind === PettydStreamFrameKind.Output ||
+    kind === PettydStreamFrameKind.Input ||
+    kind === PettydStreamFrameKind.Resize ||
+    kind === PettydStreamFrameKind.Snapshot ||
+    kind === PettydStreamFrameKind.Exit
   )
 }
 
@@ -136,10 +136,10 @@ function exactCopy(bytes: Buffer): Buffer {
   return copy
 }
 
-export class TaudStreamFrameParser {
+export class PettydStreamFrameParser {
   private pending: Buffer = Buffer.alloc(0)
 
-  push(chunk: Buffer | Uint8Array): TaudParsedStreamFrame[] {
+  push(chunk: Buffer | Uint8Array): PettydParsedStreamFrame[] {
     if (chunk.length === 0) return []
     // Parse a lone chunk in place. Payloads are copied out below, and a partial-frame remainder is
     // copied before returning, so no view into the caller's (possibly reused) chunk is retained.
@@ -154,13 +154,13 @@ export class TaudStreamFrameParser {
     }
   }
 
-  private parsePending(): TaudParsedStreamFrame[] {
-    const frames: TaudParsedStreamFrame[] = []
+  private parsePending(): PettydParsedStreamFrame[] {
+    const frames: PettydParsedStreamFrame[] = []
     let offset = 0
 
-    while (offset + TAUD_STREAM_HEADER_SIZE <= this.pending.length) {
+    while (offset + PETTYD_STREAM_HEADER_SIZE <= this.pending.length) {
       const magic = this.pending.readUInt32BE(offset)
-      if (magic !== TAUD_STREAM_MAGIC) {
+      if (magic !== PETTYD_STREAM_MAGIC) {
         const nextMagic = this.pending.indexOf(FRAME_MAGIC_BYTES, offset + 1)
         if (nextMagic === -1) {
           const prefixLength = trailingMagicPrefixLength(this.pending)
@@ -169,7 +169,7 @@ export class TaudStreamFrameParser {
             return frames
           }
           this.pending = Buffer.alloc(0)
-          throw new Error('Invalid taud stream frame magic')
+          throw new Error('Invalid pettyd stream frame magic')
         }
         offset = nextMagic
         continue
@@ -179,31 +179,31 @@ export class TaudStreamFrameParser {
       const kind = this.pending.readUInt16BE(offset + 6)
       const sessionField = this.pending.subarray(
         offset + SESSION_ID_OFFSET,
-        offset + SESSION_ID_OFFSET + TAUD_STREAM_SESSION_ID_SIZE,
+        offset + SESSION_ID_OFFSET + PETTYD_STREAM_SESSION_ID_SIZE,
       )
       const sessionId = trimSessionId(sessionField)
       const seq = this.pending.readBigUInt64BE(offset + SEQ_OFFSET)
       const length = this.pending.readUInt32BE(offset + LENGTH_OFFSET)
       const expectedCrc = this.pending.readUInt32BE(offset + CRC_OFFSET)
-      const payloadStart = offset + TAUD_STREAM_HEADER_SIZE
+      const payloadStart = offset + PETTYD_STREAM_HEADER_SIZE
       const payloadEnd = payloadStart + length
 
       if (
-        version !== TAUD_STREAM_VERSION ||
+        version !== PETTYD_STREAM_VERSION ||
         !isKnownKind(kind) ||
         sessionId.length === 0 ||
-        length > TAUD_STREAM_MAX_PAYLOAD_BYTES
+        length > PETTYD_STREAM_MAX_PAYLOAD_BYTES
       ) {
         this.pending = Buffer.alloc(0)
-        throw new Error('Invalid taud stream frame header')
+        throw new Error('Invalid pettyd stream frame header')
       }
 
       if (payloadEnd > this.pending.length) break
 
       const payload = this.pending.subarray(payloadStart, payloadEnd)
-      if (taudCrc32(payload) !== expectedCrc) {
+      if (pettydCrc32(payload) !== expectedCrc) {
         this.pending = Buffer.alloc(0)
-        throw new Error('Invalid taud stream frame CRC')
+        throw new Error('Invalid pettyd stream frame CRC')
       }
 
       frames.push({

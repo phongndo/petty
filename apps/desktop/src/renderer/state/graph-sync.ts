@@ -1,6 +1,6 @@
-import { useTauStore, selectMuxGraphSnapshot } from './store'
+import { usePettyStore, selectMuxGraphSnapshot } from './store'
 import { markRendererEvent } from '../trace'
-import type { MuxGraphSnapshot } from '@tau/shared/mux-graph'
+import type { MuxGraphSnapshot } from '@petty/shared/mux-graph'
 
 /** Keep the daemon authoritative; coalesce local graph edits and defer remote updates in flight. */
 export function startGraphSync(onLoaded: () => void): () => void {
@@ -21,7 +21,7 @@ export function startGraphSync(onLoaded: () => void): () => void {
     cursor = Math.max(cursor, graph.eventSeq)
     applying = true
     try {
-      useTauStore.getState().applyMuxGraph(graph)
+      usePettyStore.getState().applyMuxGraph(graph)
     } finally {
       applying = false
     }
@@ -45,7 +45,7 @@ export function startGraphSync(onLoaded: () => void): () => void {
           cursor = Math.max(cursor, graph.eventSeq)
           applying = true
           try {
-            useTauStore.getState().markMuxGraphRevision(rev, eventSeq)
+            usePettyStore.getState().markMuxGraphRevision(rev, eventSeq)
           } finally {
             applying = false
           }
@@ -101,7 +101,7 @@ export function startGraphSync(onLoaded: () => void): () => void {
         try {
           graph = await window.electronAPI.replaceMuxGraph(
             {
-              ...selectMuxGraphSnapshot(useTauStore.getState()),
+              ...selectMuxGraphSnapshot(usePettyStore.getState()),
               graphRev: graph.graphRev,
               eventSeq: graph.eventSeq,
             },
@@ -121,7 +121,7 @@ export function startGraphSync(onLoaded: () => void): () => void {
     onLoaded()
     markRendererEvent('ui:layout-loaded')
     if (!available) return
-    unsubscribe = useTauStore.subscribe((state, previous) => {
+    unsubscribe = usePettyStore.subscribe((state, previous) => {
       if (
         applying ||
         (state.tabs === previous.tabs &&

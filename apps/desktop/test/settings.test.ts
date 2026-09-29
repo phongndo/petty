@@ -3,7 +3,7 @@ import test from 'node:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { defaultSettings, resolveSettings, validateSettings } from '@tau/shared/preferences'
+import { defaultSettings, resolveSettings, validateSettings } from '@petty/shared/preferences'
 import { conflictingShortcut, findShortcut, parseBinding } from '../src/main/shortcuts'
 
 test('legacy preferences preserve retention settings while gaining interface defaults', () => {
@@ -97,7 +97,7 @@ test('shortcuts match exact modifiers and allow unbinding', () => {
 })
 
 test('settings store validates writes and persists preferences', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'tau-settings-test-'))
+  const home = await mkdtemp(join(tmpdir(), 'petty-settings-test-'))
   const previousHome = process.env.HOME
   // The store resolves its path from the home directory when first imported.
   process.env.HOME = home

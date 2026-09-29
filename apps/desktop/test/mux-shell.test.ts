@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { Schema } from 'effect'
-import { PANE_LAYOUT_VERSION, type PaneLayoutData } from '@tau/shared/session'
-import { CreateSessionInputSchema } from '@tau/shared/taud-protocol'
-import { collectPaneIds, normalizeSplitPercentages } from '@tau/shared/mux-graph'
+import { PANE_LAYOUT_VERSION, type PaneLayoutData } from '@petty/shared/session'
+import { CreateSessionInputSchema } from '@petty/shared/pettyd-protocol'
+import { collectPaneIds, normalizeSplitPercentages } from '@petty/shared/mux-graph'
 import {
   selectMuxGraphSnapshot,
   selectPaneLayoutData,
-  useTauStore,
+  usePettyStore,
   workspaceFolderName,
 } from '../src/renderer/state/store'
 import { searchSettings } from '../src/renderer/ui/settings-search'
 
 function resetStore(): void {
-  useTauStore.setState({
+  usePettyStore.setState({
     tabs: [],
     workspaces: [],
     panes: [],
@@ -23,7 +23,7 @@ function resetStore(): void {
     graphExtensions: undefined,
   })
   // Force default shell via hydrate of empty invalid layout
-  useTauStore.getState().hydrateLayout({
+  usePettyStore.getState().hydrateLayout({
     version: PANE_LAYOUT_VERSION,
     tabs: [],
     panes: [],
@@ -34,7 +34,7 @@ function resetStore(): void {
 
 test('fresh store opens a shell in a default workspace', () => {
   resetStore()
-  const state = useTauStore.getState()
+  const state = usePettyStore.getState()
   assert.equal(state.tabs.length, 1)
   assert.equal(state.panes.length, 1)
   assert.equal(state.panes[0]?.type, 'terminal')
@@ -60,10 +60,10 @@ test('create session schema does not require workspace or agent fields', () => {
 
 test('tabs and splits retain their workspace', () => {
   resetStore()
-  const store = useTauStore.getState()
+  const store = usePettyStore.getState()
   store.newTab()
   store.splitActivePane('row')
-  const state = useTauStore.getState()
+  const state = usePettyStore.getState()
   assert.equal(state.tabs.length, 2)
   assert.equal(state.tabs[0]?.workspaceId, state.tabs[1]?.workspaceId)
   assert.ok(state.panes.length >= 2)
@@ -77,75 +77,75 @@ test('tabs and splits retain their workspace', () => {
 
 test('workspace label follows the selected terminal folder across tabs and splits', () => {
   resetStore()
-  let state = useTauStore.getState()
+  let state = usePettyStore.getState()
   const workspace = state.workspaces[0]!
   const first = state.activePaneId!
   state.setPaneCwd(first, '/Users/me/project/')
-  state = useTauStore.getState()
+  state = usePettyStore.getState()
   assert.equal(workspaceFolderName(state.workspaces[0]!, state.tabs, state.panes), 'project')
   state.newTab()
-  state = useTauStore.getState()
+  state = usePettyStore.getState()
   assert.equal(workspaceFolderName(state.workspaces[0]!, state.tabs, state.panes), workspace.name)
   state.setPaneCwd(state.activePaneId!, '/tmp/another')
-  state = useTauStore.getState()
+  state = usePettyStore.getState()
   assert.equal(workspaceFolderName(state.workspaces[0]!, state.tabs, state.panes), 'another')
   state.selectPane(first)
-  state = useTauStore.getState()
+  state = usePettyStore.getState()
   assert.equal(workspaceFolderName(state.workspaces[0]!, state.tabs, state.panes), 'project')
   state.setPaneCwd(first, '/')
-  state = useTauStore.getState()
+  state = usePettyStore.getState()
   assert.equal(workspaceFolderName(state.workspaces[0]!, state.tabs, state.panes), '/')
 })
 
 test('explicit tab names survive terminal titles and graph restore; clearing restores automatic naming', () => {
   resetStore()
-  const first = useTauStore.getState()
+  const first = usePettyStore.getState()
   const tabId = first.activeTabId!
   const paneId = first.activePaneId!
   first.setPaneTitle(paneId, 'nvim')
   first.renameTab(tabId, 'Project')
-  useTauStore.getState().setPaneTitle(paneId, 'git')
-  assert.equal(useTauStore.getState().tabs[0]?.name, 'Project')
-  const graph = selectMuxGraphSnapshot(useTauStore.getState())
-  useTauStore.getState().applyMuxGraph(graph)
-  const restored = useTauStore.getState().tabs[0]!
-  assert.equal((restored.extensions as Record<string, unknown>).tauManualName, 'Project')
-  useTauStore.getState().renameTab(tabId, '')
-  const cleared = useTauStore.getState().tabs[0]!
-  assert.equal((cleared.extensions as Record<string, unknown>).tauManualName, undefined)
+  usePettyStore.getState().setPaneTitle(paneId, 'git')
+  assert.equal(usePettyStore.getState().tabs[0]?.name, 'Project')
+  const graph = selectMuxGraphSnapshot(usePettyStore.getState())
+  usePettyStore.getState().applyMuxGraph(graph)
+  const restored = usePettyStore.getState().tabs[0]!
+  assert.equal((restored.extensions as Record<string, unknown>).pettyManualName, 'Project')
+  usePettyStore.getState().renameTab(tabId, '')
+  const cleared = usePettyStore.getState().tabs[0]!
+  assert.equal((cleared.extensions as Record<string, unknown>).pettyManualName, undefined)
 })
 
 test('workspaces keep separate tab selections across graph snapshots', () => {
   resetStore()
-  const firstWorkspace = useTauStore.getState().workspaces[0]!
-  useTauStore.getState().newTab()
-  const secondTab = useTauStore.getState().activeTabId
-  useTauStore.getState().newWorkspace()
-  const secondWorkspace = useTauStore.getState().workspaces[1]!
-  useTauStore.getState().newTab()
-  const fourthTab = useTauStore.getState().activeTabId
-  useTauStore.getState().selectWorkspace(firstWorkspace.id)
-  assert.equal(useTauStore.getState().activeTabId, secondTab)
-  useTauStore.getState().selectTabByIndex(0)
-  assert.equal(useTauStore.getState().activeTabId, useTauStore.getState().tabs[0]?.id)
-  useTauStore.getState().selectWorkspace(secondWorkspace.id)
-  assert.equal(useTauStore.getState().activeTabId, fourthTab)
+  const firstWorkspace = usePettyStore.getState().workspaces[0]!
+  usePettyStore.getState().newTab()
+  const secondTab = usePettyStore.getState().activeTabId
+  usePettyStore.getState().newWorkspace()
+  const secondWorkspace = usePettyStore.getState().workspaces[1]!
+  usePettyStore.getState().newTab()
+  const fourthTab = usePettyStore.getState().activeTabId
+  usePettyStore.getState().selectWorkspace(firstWorkspace.id)
+  assert.equal(usePettyStore.getState().activeTabId, secondTab)
+  usePettyStore.getState().selectTabByIndex(0)
+  assert.equal(usePettyStore.getState().activeTabId, usePettyStore.getState().tabs[0]?.id)
+  usePettyStore.getState().selectWorkspace(secondWorkspace.id)
+  assert.equal(usePettyStore.getState().activeTabId, fourthTab)
 
-  const graph = selectMuxGraphSnapshot(useTauStore.getState())
+  const graph = selectMuxGraphSnapshot(usePettyStore.getState())
   graph.extensions = { ...(graph.extensions as object), otherFeature: { enabled: true } }
   graph.tabs[0]!.extensions = { ...(graph.tabs[0]!.extensions as object), otherFeature: 'kept' }
-  useTauStore.getState().applyMuxGraph(graph)
-  const restored = selectMuxGraphSnapshot(useTauStore.getState())
+  usePettyStore.getState().applyMuxGraph(graph)
+  const restored = selectMuxGraphSnapshot(usePettyStore.getState())
   assert.deepEqual((restored.extensions as Record<string, unknown>).otherFeature, { enabled: true })
   const firstTab = restored.tabs[0]
   assert.ok(firstTab)
   assert.equal((firstTab.extensions as Record<string, unknown>).otherFeature, 'kept')
-  useTauStore.getState().selectWorkspace(firstWorkspace.id)
-  assert.equal(useTauStore.getState().activeTabId, useTauStore.getState().tabs[0]?.id)
-  useTauStore.getState().closeWorkspace(secondWorkspace.id)
-  assert.equal(useTauStore.getState().tabs.length, 2)
+  usePettyStore.getState().selectWorkspace(firstWorkspace.id)
+  assert.equal(usePettyStore.getState().activeTabId, usePettyStore.getState().tabs[0]?.id)
+  usePettyStore.getState().closeWorkspace(secondWorkspace.id)
+  assert.equal(usePettyStore.getState().tabs.length, 2)
   assert.deepEqual(
-    useTauStore.getState().workspaces.map((workspace) => workspace.id),
+    usePettyStore.getState().workspaces.map((workspace) => workspace.id),
     [firstWorkspace.id],
   )
 })
@@ -172,8 +172,8 @@ test('discards pre-v2 workspace-centric layouts', () => {
     activeTabId: null,
     activePaneId: null,
   } as unknown as PaneLayoutData
-  useTauStore.getState().hydrateLayout(legacy)
-  const state = useTauStore.getState()
+  usePettyStore.getState().hydrateLayout(legacy)
+  const state = usePettyStore.getState()
   assert.equal(state.tabs.length, 1)
   assert.equal(state.panes[0]?.type, 'terminal')
 })

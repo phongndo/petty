@@ -5,28 +5,28 @@ import { spawn, type ChildProcess, type StdioOptions } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import net from 'node:net'
 import electron from 'electron'
-import { resolveTauStoragePaths } from '@tau/shared/storage-path'
+import { resolvePettyStoragePaths } from '@petty/shared/storage-path'
 import {
-  TAUD_CONTROL_CAPABILITIES,
-  TAUD_CONTROL_PROTOCOL_VERSION,
-  TAUD_STREAM_MAX_PAYLOAD_BYTES,
-  TaudStreamFrameKind,
-  type TaudControlRequestDiagnostics,
-  type TaudDaemonControlDiagnostics,
-  type TaudDaemonOwnership,
-  type TaudLifecycleDiagnostics,
-  type TaudLifecycleEvent,
-  type TaudLifecycleRecoveryAction,
-  type TaudLifecycleState,
-  type TaudStreamDiagnostics,
-  type TaudStreamFrameKind as TaudStreamFrameKindValue,
-} from '@tau/shared/taud-protocol'
+  PETTYD_CONTROL_CAPABILITIES,
+  PETTYD_CONTROL_PROTOCOL_VERSION,
+  PETTYD_STREAM_MAX_PAYLOAD_BYTES,
+  PettydStreamFrameKind,
+  type PettydControlRequestDiagnostics,
+  type PettydDaemonControlDiagnostics,
+  type PettydDaemonOwnership,
+  type PettydLifecycleDiagnostics,
+  type PettydLifecycleEvent,
+  type PettydLifecycleRecoveryAction,
+  type PettydLifecycleState,
+  type PettydStreamDiagnostics,
+  type PettydStreamFrameKind as PettydStreamFrameKindValue,
+} from '@petty/shared/pettyd-protocol'
 import {
-  encodeTaudResizePayload,
-  encodeTaudStreamFrame,
-  TaudStreamFrameParser,
-  type TaudParsedStreamFrame,
-} from './taud-stream'
+  encodePettydResizePayload,
+  encodePettydStreamFrame,
+  PettydStreamFrameParser,
+  type PettydParsedStreamFrame,
+} from './pettyd-stream'
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 500
 const DEFAULT_CONTROL_RESPONSE_TIMEOUT_MS = 5000
@@ -36,7 +36,7 @@ const DEFAULT_RESTART_BACKOFF_MS = 750
 const DEFAULT_DISPOSE_DAEMON_TIMEOUT_MS = 1000
 /** Must cover daemon graph_snapshot_bytes_max after JSON string escaping plus control envelope. */
 const CONTROL_RESPONSE_MAX_BYTES = 9 * 1024 * 1024
-const TAUD_LIFECYCLE_EVENT_LIMIT = 32
+const PETTYD_LIFECYCLE_EVENT_LIMIT = 32
 
 type ElectronAppLike = {
   getAppPath(): string
@@ -47,9 +47,9 @@ const electronApp =
     ? (electron as { app?: ElectronAppLike }).app
     : undefined
 
-type TaudRequest = Record<string, unknown>
+type PettydRequest = Record<string, unknown>
 
-export type TaudControlResponse = {
+export type PettydControlResponse = {
   readonly id?: string
   readonly trace_id?: string
   readonly traceId?: string
@@ -84,9 +84,9 @@ export type TaudControlResponse = {
   readonly error_message?: string
 }
 
-type TaudRawControlResponse = TaudControlResponse & Record<string, unknown>
+type PettydRawControlResponse = PettydControlResponse & Record<string, unknown>
 
-type RawTaudStreamDiagnostics = {
+type RawPettydStreamDiagnostics = {
   readonly active_subscribers?: unknown
   readonly activeSubscribers?: unknown
   readonly pending_output_sessions?: unknown
@@ -115,7 +115,7 @@ type RawTaudStreamDiagnostics = {
   readonly pendingOutputTruncatedBytesTotal?: unknown
 }
 
-type RawTaudDaemonControlDiagnostics = {
+type RawPettydDaemonControlDiagnostics = {
   readonly request_count?: unknown
   readonly requestCount?: unknown
   readonly failure_count?: unknown
@@ -132,7 +132,7 @@ type RawTaudDaemonControlDiagnostics = {
   readonly lastRecordedAtMs?: unknown
 }
 
-export type TaudCreateSessionInput = {
+export type PettydCreateSessionInput = {
   readonly sessionId: string
   readonly terminalId: string
   readonly cols: number
@@ -141,7 +141,7 @@ export type TaudCreateSessionInput = {
   readonly argv?: readonly string[]
 }
 
-export type TaudAttachSessionInput = {
+export type PettydAttachSessionInput = {
   readonly sessionId: string
   readonly terminalId?: string
   readonly cols?: number
@@ -149,18 +149,18 @@ export type TaudAttachSessionInput = {
   readonly cwd?: string
 }
 
-export type TaudCleanupSessionsInput = {
+export type PettydCleanupSessionsInput = {
   readonly retainDays: number
   readonly maxSessionBytes: number
   readonly activeSessionIds?: readonly string[]
 }
 
-export type TaudPersistenceSettingsInput = {
+export type PettydPersistenceSettingsInput = {
   readonly enabled: boolean
   readonly persistInput: boolean
 }
 
-export type TaudMuxGraphState = {
+export type PettydMuxGraphState = {
   readonly snapshotJson: string
   readonly graphRev: number
   readonly eventSeq: number
@@ -169,8 +169,8 @@ export type TaudMuxGraphState = {
   readonly requiresResync: boolean
 }
 
-export type TaudSessionStreamEvents = {
-  frame: [TaudParsedStreamFrame]
+export type PettydSessionStreamEvents = {
+  frame: [PettydParsedStreamFrame]
   error: [Error]
   close: []
 }
@@ -200,18 +200,18 @@ function errorCode(error: unknown): string | null {
   return typeof code === 'string' ? code : null
 }
 
-function requestField(request: TaudRequest, field: string): string {
+function requestField(request: PettydRequest, field: string): string {
   const value = request[field]
   return typeof value === 'string' && value.length > 0 ? value : 'unknown'
 }
 
-function requestTraceId(clientTraceId: string, request: TaudRequest): string {
+function requestTraceId(clientTraceId: string, request: PettydRequest): string {
   const existing = requestField(request, 'traceId')
   if (existing !== 'unknown') return existing
   return `${clientTraceId}:${requestField(request, 'id')}`
 }
 
-function responseTraceId(response: TaudControlResponse): string | undefined {
+function responseTraceId(response: PettydControlResponse): string | undefined {
   const traceId = response.trace_id ?? response.traceId
   return typeof traceId === 'string' && traceId.length > 0 ? traceId : undefined
 }
@@ -240,8 +240,8 @@ function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<void>
   })
 }
 
-function responseError(response: TaudControlResponse): Error {
-  const error = new Error(response.error_message ?? 'taud request failed') as Error & {
+function responseError(response: PettydControlResponse): Error {
+  const error = new Error(response.error_message ?? 'pettyd request failed') as Error & {
     code?: string
     kind?: string
   }
@@ -250,58 +250,58 @@ function responseError(response: TaudControlResponse): Error {
   return error
 }
 
-class TaudCompatibilityError extends Error {
-  readonly code = 'TAUD_PROTOCOL_MISMATCH'
+class PettydCompatibilityError extends Error {
+  readonly code = 'PETTYD_PROTOCOL_MISMATCH'
 }
 
-function isTaudCompatibilityError(error: unknown): error is TaudCompatibilityError {
-  return error instanceof TaudCompatibilityError
+function isPettydCompatibilityError(error: unknown): error is PettydCompatibilityError {
+  return error instanceof PettydCompatibilityError
 }
 
-function formatDaemonVersion(response: TaudControlResponse): string {
+function formatDaemonVersion(response: PettydControlResponse): string {
   return (
     optionalString(response.daemon_version ?? response.daemonVersion) ??
     `protocol ${String(response.protocol_version ?? response.protocolVersion ?? 'unknown')}`
   )
 }
 
-function assertCompatiblePingResponse(response: TaudControlResponse): void {
+function assertCompatiblePingResponse(response: PettydControlResponse): void {
   if (!response.ok || response.status !== 'ok') throw responseError(response)
 
   const protocolVersion = numberOr(
     response.protocol_version ?? response.protocolVersion,
     Number.NaN,
   )
-  if (protocolVersion !== TAUD_CONTROL_PROTOCOL_VERSION) {
-    throw new TaudCompatibilityError(
-      `taud protocol mismatch: desktop requires protocol ${TAUD_CONTROL_PROTOCOL_VERSION}, daemon reported ${String(protocolVersion)} (${formatDaemonVersion(response)})`,
+  if (protocolVersion !== PETTYD_CONTROL_PROTOCOL_VERSION) {
+    throw new PettydCompatibilityError(
+      `pettyd protocol mismatch: desktop requires protocol ${PETTYD_CONTROL_PROTOCOL_VERSION}, daemon reported ${String(protocolVersion)} (${formatDaemonVersion(response)})`,
     )
   }
 
   const capabilities = new Set(stringArray(response.capabilities))
-  const missingCapabilities = TAUD_CONTROL_CAPABILITIES.filter(
+  const missingCapabilities = PETTYD_CONTROL_CAPABILITIES.filter(
     (capability) => !capabilities.has(capability),
   )
   if (missingCapabilities.length > 0) {
-    throw new TaudCompatibilityError(
-      `taud protocol mismatch: daemon ${formatDaemonVersion(response)} is missing capabilities ${missingCapabilities.join(', ')}`,
+    throw new PettydCompatibilityError(
+      `pettyd protocol mismatch: daemon ${formatDaemonVersion(response)} is missing capabilities ${missingCapabilities.join(', ')}`,
     )
   }
 }
 
-function parseControlResponse(line: Buffer): TaudRawControlResponse {
-  const parsed = JSON.parse(line.toString('utf8')) as TaudRawControlResponse
-  if (!parsed || typeof parsed.ok !== 'boolean') throw new Error('Invalid taud control response')
+function parseControlResponse(line: Buffer): PettydRawControlResponse {
+  const parsed = JSON.parse(line.toString('utf8')) as PettydRawControlResponse
+  if (!parsed || typeof parsed.ok !== 'boolean') throw new Error('Invalid pettyd control response')
   return parsed
 }
 
-function parseMuxGraphState(response: TaudRawControlResponse): TaudMuxGraphState {
+function parseMuxGraphState(response: PettydRawControlResponse): PettydMuxGraphState {
   if (
     typeof response.graph_snapshot_json !== 'string' ||
     typeof response.graph_rev !== 'number' ||
     typeof response.event_seq !== 'number'
   ) {
-    throw new Error('Invalid taud mux graph response')
+    throw new Error('Invalid pettyd mux graph response')
   }
   return {
     snapshotJson: response.graph_snapshot_json,
@@ -330,9 +330,9 @@ function stringArray(value: unknown): string[] {
     : []
 }
 
-function normalizeTaudStreamDiagnostics(value: unknown): TaudStreamDiagnostics | undefined {
+function normalizePettydStreamDiagnostics(value: unknown): PettydStreamDiagnostics | undefined {
   if (!value || typeof value !== 'object') return undefined
-  const raw = value as RawTaudStreamDiagnostics
+  const raw = value as RawPettydStreamDiagnostics
   return {
     activeSubscribers: numberOr(raw.active_subscribers ?? raw.activeSubscribers, 0),
     pendingOutputSessions: numberOr(raw.pending_output_sessions ?? raw.pendingOutputSessions, 0),
@@ -362,11 +362,11 @@ function normalizeTaudStreamDiagnostics(value: unknown): TaudStreamDiagnostics |
   }
 }
 
-function normalizeTaudDaemonControlDiagnostics(
+function normalizePettydDaemonControlDiagnostics(
   value: unknown,
-): TaudDaemonControlDiagnostics | undefined {
+): PettydDaemonControlDiagnostics | undefined {
   if (!value || typeof value !== 'object') return undefined
-  const raw = value as RawTaudDaemonControlDiagnostics
+  const raw = value as RawPettydDaemonControlDiagnostics
   const lastRequestType = optionalString(raw.last_request_type ?? raw.lastRequestType)
   const lastTraceId = optionalString(raw.last_trace_id ?? raw.lastTraceId)
   const lastDurationMs = raw.last_duration_ms ?? raw.lastDurationMs
@@ -383,9 +383,9 @@ function normalizeTaudDaemonControlDiagnostics(
   }
 }
 
-function candidateTaudPaths(): string[] {
-  const envPath = process.env.TAUD_PATH?.trim()
-  const exeName = process.platform === 'win32' ? 'taud.exe' : 'taud'
+function candidatePettydPaths(): string[] {
+  const envPath = process.env.PETTYD_PATH?.trim()
+  const exeName = process.platform === 'win32' ? 'pettyd.exe' : 'pettyd'
   const appPath = safeAppPath()
   const cwd = process.cwd()
 
@@ -423,15 +423,15 @@ function safeAppPath(): string | null {
   }
 }
 
-function findTaudBinary(): string | null {
-  for (const candidate of candidateTaudPaths()) {
+function findPettydBinary(): string | null {
+  for (const candidate of candidatePettydPaths()) {
     if (existsSync(candidate)) return candidate
   }
   return null
 }
 
 function defaultSocketPath(): string {
-  return resolveTauStoragePaths(homedir()).socket
+  return resolvePettyStoragePaths(homedir()).socket
 }
 
 function connectUnixSocket(socketPath: string, timeoutMs: number): Promise<net.Socket> {
@@ -442,7 +442,7 @@ function connectUnixSocket(socketPath: string, timeoutMs: number): Promise<net.S
       if (settled) return
       settled = true
       socket.destroy()
-      rejectSocket(new Error(`Timed out connecting to taud at ${socketPath}`))
+      rejectSocket(new Error(`Timed out connecting to pettyd at ${socketPath}`))
     }, timeoutMs)
 
     socket.once('connect', () => {
@@ -471,7 +471,7 @@ function writeSocketPayload(
   return new Promise((resolveWrite, rejectWrite) => {
     let settled = false
     const timeout = setTimeout(() => {
-      reject(new Error(`Timed out writing ${context} to taud`))
+      reject(new Error(`Timed out writing ${context} to pettyd`))
     }, timeoutMs)
 
     function cleanup() {
@@ -504,7 +504,7 @@ function writeSocketPayload(
     }
 
     function onClose() {
-      reject(new Error(`taud closed the socket before accepting ${context}`))
+      reject(new Error(`pettyd closed the socket before accepting ${context}`))
     }
 
     socket.once('error', onError)
@@ -515,7 +515,7 @@ function writeSocketPayload(
 
     if (!accepted) {
       console.warn(
-        `[taud-client] socket write backpressure while writing ${context}; buffered=${socket.writableLength}`,
+        `[pettyd-client] socket write backpressure while writing ${context}; buffered=${socket.writableLength}`,
       )
       socket.once('drain', onDrain)
       return
@@ -528,12 +528,12 @@ function writeSocketPayload(
 function readNdjsonResponse(
   socket: net.Socket,
   timeoutMs: number,
-): Promise<{ response: TaudRawControlResponse; tail: Buffer }> {
+): Promise<{ response: PettydRawControlResponse; tail: Buffer }> {
   return new Promise((resolveResponse, rejectResponse) => {
     let buffered = Buffer.alloc(0)
     let settled = false
     const timeout = setTimeout(() => {
-      reject(new Error('Timed out waiting for taud control response'))
+      reject(new Error('Timed out waiting for pettyd control response'))
     }, timeoutMs)
 
     function cleanup() {
@@ -553,7 +553,7 @@ function readNdjsonResponse(
     function onData(chunk: Buffer) {
       buffered = buffered.length === 0 ? Buffer.from(chunk) : Buffer.concat([buffered, chunk])
       if (buffered.length > CONTROL_RESPONSE_MAX_BYTES) {
-        reject(new Error('taud control response too large'))
+        reject(new Error('pettyd control response too large'))
         return
       }
 
@@ -579,7 +579,7 @@ function readNdjsonResponse(
     }
 
     function onClose() {
-      reject(new Error('taud closed the control socket before responding'))
+      reject(new Error('pettyd closed the control socket before responding'))
     }
 
     socket.on('data', onData)
@@ -593,12 +593,12 @@ const SESSION_INPUT_QUEUE_MAX_BYTES = 1024 * 1024
 /** Chunk size for direct and queued writes; keeps frames under the daemon payload limit. */
 const SESSION_INPUT_CHUNK_MAX_BYTES = Math.min(
   256 * 1024,
-  TAUD_STREAM_MAX_PAYLOAD_BYTES,
+  PETTYD_STREAM_MAX_PAYLOAD_BYTES,
   SESSION_INPUT_QUEUE_MAX_BYTES,
 )
 
-export class TaudSessionStream extends EventEmitter<TaudSessionStreamEvents> {
-  private readonly parser = new TaudStreamFrameParser()
+export class PettydSessionStream extends EventEmitter<PettydSessionStreamEvents> {
+  private readonly parser = new PettydStreamFrameParser()
   private clientSeq = 0n
   private started = false
   private waitingForWriteDrain = false
@@ -637,13 +637,13 @@ export class TaudSessionStream extends EventEmitter<TaudSessionStreamEvents> {
         this.enqueueInput(chunk)
         continue
       }
-      this.writeFrame(TaudStreamFrameKind.Input, chunk)
+      this.writeFrame(PettydStreamFrameKind.Input, chunk)
     }
   }
 
   resize(cols: number, rows: number): void {
     if (this.socket.destroyed) return
-    this.writeFrame(TaudStreamFrameKind.Resize, encodeTaudResizePayload(cols, rows))
+    this.writeFrame(PettydStreamFrameKind.Resize, encodePettydResizePayload(cols, rows))
   }
 
   close(): void {
@@ -657,7 +657,7 @@ export class TaudSessionStream extends EventEmitter<TaudSessionStreamEvents> {
   private enqueueInput(payload: Buffer): void {
     if (payload.length > SESSION_INPUT_QUEUE_MAX_BYTES) {
       console.warn(
-        `[taud-client] dropping oversized input frame for ${this.sessionId}; bytes=${payload.length}`,
+        `[pettyd-client] dropping oversized input frame for ${this.sessionId}; bytes=${payload.length}`,
       )
       return
     }
@@ -669,7 +669,7 @@ export class TaudSessionStream extends EventEmitter<TaudSessionStreamEvents> {
       const dropped = this.inputQueue.shift()!
       this.inputQueueBytes -= dropped.length
       console.warn(
-        `[taud-client] input queue overflow for ${this.sessionId}; dropped oldest chunk bytes=${dropped.length}`,
+        `[pettyd-client] input queue overflow for ${this.sessionId}; dropped oldest chunk bytes=${dropped.length}`,
       )
     }
     if (this.inputQueueBytes + payload.length > SESSION_INPUT_QUEUE_MAX_BYTES) return
@@ -681,13 +681,13 @@ export class TaudSessionStream extends EventEmitter<TaudSessionStreamEvents> {
     while (this.inputQueue.length > 0 && !this.socket.destroyed && !this.waitingForWriteDrain) {
       const next = this.inputQueue.shift()!
       this.inputQueueBytes -= next.length
-      this.writeFrame(TaudStreamFrameKind.Input, next)
+      this.writeFrame(PettydStreamFrameKind.Input, next)
     }
   }
 
-  private writeFrame(kind: TaudStreamFrameKindValue, payload: Buffer): void {
+  private writeFrame(kind: PettydStreamFrameKindValue, payload: Buffer): void {
     this.clientSeq += 1n
-    const frame = encodeTaudStreamFrame({
+    const frame = encodePettydStreamFrame({
       kind,
       sessionId: this.sessionId,
       seq: this.clientSeq,
@@ -697,7 +697,7 @@ export class TaudSessionStream extends EventEmitter<TaudSessionStreamEvents> {
     if (!accepted && !this.waitingForWriteDrain) {
       this.waitingForWriteDrain = true
       console.warn(
-        `[taud-client] stream write backpressure for ${this.sessionId}; buffered=${this.socket.writableLength}`,
+        `[pettyd-client] stream write backpressure for ${this.sessionId}; buffered=${this.socket.writableLength}`,
       )
       this.socket.once('drain', () => {
         this.waitingForWriteDrain = false
@@ -718,7 +718,7 @@ export class TaudSessionStream extends EventEmitter<TaudSessionStreamEvents> {
   }
 }
 
-export class TaudClient {
+export class PettydClient {
   private readonly socketPath: string
   private readonly connectTimeoutMs: number
   private readonly controlResponseTimeoutMs: number
@@ -731,20 +731,20 @@ export class TaudClient {
   private healthTimer: ReturnType<typeof setInterval> | null = null
   private restartTimer: ReturnType<typeof setTimeout> | null = null
   private disposed = false
-  private lifecycleState: TaudLifecycleState = 'absent'
+  private lifecycleState: PettydLifecycleState = 'absent'
   private lifecycleReason: string | undefined
   private lifecycleError: string | undefined
   private lifecycleDaemonVersion: string | undefined
   private lifecycleProtocolVersion: number | undefined
   private lifecycleCapabilities: string[] = []
-  private lifecycleStreamDiagnostics: TaudStreamDiagnostics | undefined
-  private lifecycleDaemonControlDiagnostics: TaudDaemonControlDiagnostics | undefined
-  private lifecycleDaemonOwnership: TaudDaemonOwnership = 'none'
+  private lifecycleStreamDiagnostics: PettydStreamDiagnostics | undefined
+  private lifecycleDaemonControlDiagnostics: PettydDaemonControlDiagnostics | undefined
+  private lifecycleDaemonOwnership: PettydDaemonOwnership = 'none'
   private releasedDetachedPid: number | undefined
   private controlRequestCount = 0
   private controlRequestFailureCount = 0
-  private lastControlRequest: TaudControlRequestDiagnostics | undefined
-  private readonly clientTraceId = nextRequestId('taud-client')
+  private lastControlRequest: PettydControlRequestDiagnostics | undefined
+  private readonly clientTraceId = nextRequestId('pettyd-client')
   private readonly clientCreatedAt = Date.now()
   private lastTransitionAt = this.clientCreatedAt
   private lastPingStartedAt: number | undefined
@@ -753,7 +753,7 @@ export class TaudClient {
   private lastFailedPingAt: number | undefined
   private lastStartRequestedAt: number | undefined
   private lastStartDurationMs: number | undefined
-  private readonly lifecycleEvents: TaudLifecycleEvent[] = [
+  private readonly lifecycleEvents: PettydLifecycleEvent[] = [
     { state: 'absent', at: this.clientCreatedAt, reason: 'client-created' },
   ]
 
@@ -778,7 +778,7 @@ export class TaudClient {
     this.detachDaemon = options.detachDaemon ?? true
   }
 
-  getLifecycleDiagnostics(): TaudLifecycleDiagnostics {
+  getLifecycleDiagnostics(): PettydLifecycleDiagnostics {
     return {
       clientTraceId: this.clientTraceId,
       state: this.lifecycleState,
@@ -834,7 +834,7 @@ export class TaudClient {
     }
   }
 
-  private transitionLifecycle(state: TaudLifecycleState, reason?: string, error?: unknown): void {
+  private transitionLifecycle(state: PettydLifecycleState, reason?: string, error?: unknown): void {
     const transitionedAt = Date.now()
     this.lifecycleState = state
     this.lifecycleReason = reason
@@ -845,12 +845,12 @@ export class TaudClient {
       at: transitionedAt,
       ...(reason ? { reason } : {}),
     })
-    if (this.lifecycleEvents.length > TAUD_LIFECYCLE_EVENT_LIMIT) {
-      this.lifecycleEvents.splice(0, this.lifecycleEvents.length - TAUD_LIFECYCLE_EVENT_LIMIT)
+    if (this.lifecycleEvents.length > PETTYD_LIFECYCLE_EVENT_LIMIT) {
+      this.lifecycleEvents.splice(0, this.lifecycleEvents.length - PETTYD_LIFECYCLE_EVENT_LIMIT)
     }
   }
 
-  private recordLiveDaemon(response: TaudControlResponse): void {
+  private recordLiveDaemon(response: PettydControlResponse): void {
     this.lifecycleDaemonOwnership = this.currentDaemonOwnership()
     this.lifecycleDaemonVersion =
       optionalString(response.daemon_version ?? response.daemonVersion) ??
@@ -861,22 +861,22 @@ export class TaudClient {
     )
     if (!Number.isFinite(this.lifecycleProtocolVersion)) this.lifecycleProtocolVersion = undefined
     this.lifecycleCapabilities = stringArray(response.capabilities)
-    this.lifecycleStreamDiagnostics = normalizeTaudStreamDiagnostics(
+    this.lifecycleStreamDiagnostics = normalizePettydStreamDiagnostics(
       response.stream_diagnostics ?? response.streamDiagnostics,
     )
-    this.lifecycleDaemonControlDiagnostics = normalizeTaudDaemonControlDiagnostics(
+    this.lifecycleDaemonControlDiagnostics = normalizePettydDaemonControlDiagnostics(
       response.control_diagnostics ?? response.controlDiagnostics,
     )
   }
 
-  private currentDaemonOwnership(): TaudDaemonOwnership {
+  private currentDaemonOwnership(): PettydDaemonOwnership {
     if (this.spawnedProcess && !hasExited(this.spawnedProcess)) {
       return this.detachDaemon ? 'owned-detached' : 'owned-attached'
     }
     return 'external'
   }
 
-  private lifecycleRecoveryAction(): TaudLifecycleRecoveryAction {
+  private lifecycleRecoveryAction(): PettydLifecycleRecoveryAction {
     if (this.disposed) {
       return this.lifecycleDaemonOwnership === 'released-detached' ? 'keep-detached-daemon' : 'none'
     }
@@ -901,7 +901,7 @@ export class TaudClient {
     }
   }
 
-  async refreshLifecycleDiagnostics(): Promise<TaudLifecycleDiagnostics> {
+  async refreshLifecycleDiagnostics(): Promise<PettydLifecycleDiagnostics> {
     if (!this.disposed) {
       try {
         await this.canConnect()
@@ -914,7 +914,7 @@ export class TaudClient {
   }
 
   private recordControlRequest(
-    request: TaudRequest,
+    request: PettydRequest,
     startedAt: number,
     ok: boolean,
     responseTrace: string | undefined,
@@ -935,13 +935,13 @@ export class TaudClient {
   }
 
   async ensureRunning(): Promise<void> {
-    if (this.disposed) throw new Error('taud client is disposed')
+    if (this.disposed) throw new Error('pettyd client is disposed')
     this.startHealthChecks()
     if (await this.canConnect()) {
-      if (this.disposed) throw new Error('taud client is disposed')
+      if (this.disposed) throw new Error('pettyd client is disposed')
       return
     }
-    if (this.disposed) throw new Error('taud client is disposed')
+    if (this.disposed) throw new Error('pettyd client is disposed')
 
     this.transitionLifecycle('starting', 'daemon-start-requested')
     this.startPromise ??= this.startDaemon().finally(() => {
@@ -951,8 +951,8 @@ export class TaudClient {
   }
 
   async applyLifecycleRecovery(
-    action: TaudLifecycleRecoveryAction,
-  ): Promise<TaudLifecycleDiagnostics> {
+    action: PettydLifecycleRecoveryAction,
+  ): Promise<PettydLifecycleDiagnostics> {
     if (
       action === 'none' ||
       action === 'reuse-external-daemon' ||
@@ -964,7 +964,7 @@ export class TaudClient {
     const diagnostics = this.getLifecycleDiagnostics()
     if (diagnostics.recoveryAction !== action) {
       throw new Error(
-        `Cannot apply taud recovery action ${action}; current action is ${diagnostics.recoveryAction}`,
+        `Cannot apply pettyd recovery action ${action}; current action is ${diagnostics.recoveryAction}`,
       )
     }
 
@@ -1007,7 +1007,7 @@ export class TaudClient {
       this.lifecycleDaemonOwnership = 'none'
     }
     this.spawnedProcess = null
-    // taud is intentionally detached and may keep live PTYs available across Electron restarts.
+    // pettyd is intentionally detached and may keep live PTYs available across Electron restarts.
     // Disposing the client releases this process' handles without terminating the daemon.
     if (!this.detachDaemon && spawnedProcess && !hasExited(spawnedProcess)) {
       spawnedProcess.kill()
@@ -1028,10 +1028,10 @@ export class TaudClient {
   }
 
   private async restartOwnedDaemon(reason: string): Promise<void> {
-    if (this.disposed) throw new Error('taud client is disposed')
+    if (this.disposed) throw new Error('pettyd client is disposed')
     const spawnedProcess = this.spawnedProcess
     if (!spawnedProcess || hasExited(spawnedProcess)) {
-      throw new Error('Cannot restart taud because this client does not own a running daemon')
+      throw new Error('Cannot restart pettyd because this client does not own a running daemon')
     }
 
     this.transitionLifecycle('stopping', reason)
@@ -1044,7 +1044,7 @@ export class TaudClient {
       await waitForChildExit(spawnedProcess, DEFAULT_DISPOSE_DAEMON_TIMEOUT_MS)
     }
     if (!hasExited(spawnedProcess)) {
-      throw new Error('Timed out stopping owned taud for recovery')
+      throw new Error('Timed out stopping owned pettyd for recovery')
     }
 
     spawnedProcess.removeAllListeners()
@@ -1054,7 +1054,7 @@ export class TaudClient {
     await this.ensureRunning()
   }
 
-  async createSession(input: TaudCreateSessionInput): Promise<TaudControlResponse> {
+  async createSession(input: PettydCreateSessionInput): Promise<PettydControlResponse> {
     const response = await this.request({
       type: 'create',
       id: nextRequestId('create'),
@@ -1069,9 +1069,9 @@ export class TaudClient {
     return response
   }
 
-  async attachSession(input: TaudAttachSessionInput): Promise<{
-    response: TaudControlResponse
-    stream: TaudSessionStream
+  async attachSession(input: PettydAttachSessionInput): Promise<{
+    response: PettydControlResponse
+    stream: PettydSessionStream
   }> {
     await this.ensureRunning()
     const socket = await connectUnixSocket(this.socketPath, this.connectTimeoutMs)
@@ -1086,7 +1086,7 @@ export class TaudClient {
       ...(input.cwd ? { cwd: input.cwd } : {}),
     })
 
-    let response: TaudControlResponse
+    let response: PettydControlResponse
     let tail: Buffer
     const startedAt = Date.now()
     try {
@@ -1117,11 +1117,15 @@ export class TaudClient {
 
     return {
       response,
-      stream: new TaudSessionStream(socket, input.sessionId, tail),
+      stream: new PettydSessionStream(socket, input.sessionId, tail),
     }
   }
 
-  async resizeSession(sessionId: string, cols: number, rows: number): Promise<TaudControlResponse> {
+  async resizeSession(
+    sessionId: string,
+    cols: number,
+    rows: number,
+  ): Promise<PettydControlResponse> {
     const response = await this.request({
       type: 'resize',
       id: nextRequestId('resize'),
@@ -1143,7 +1147,7 @@ export class TaudClient {
     if (!response.ok) throw responseError(response)
   }
 
-  async clearHistory(sessionIds?: readonly string[]): Promise<TaudControlResponse> {
+  async clearHistory(sessionIds?: readonly string[]): Promise<PettydControlResponse> {
     const response = await this.request({
       type: 'clear-history',
       id: nextRequestId('clear-history'),
@@ -1153,7 +1157,7 @@ export class TaudClient {
     return response
   }
 
-  async cleanupSessions(input: TaudCleanupSessionsInput): Promise<TaudControlResponse> {
+  async cleanupSessions(input: PettydCleanupSessionsInput): Promise<PettydControlResponse> {
     const response = await this.request({
       type: 'cleanup',
       id: nextRequestId('cleanup'),
@@ -1165,7 +1169,9 @@ export class TaudClient {
     return response
   }
 
-  async configurePersistence(input: TaudPersistenceSettingsInput): Promise<TaudControlResponse> {
+  async configurePersistence(
+    input: PettydPersistenceSettingsInput,
+  ): Promise<PettydControlResponse> {
     const response = await this.request({
       type: 'configure-persistence',
       id: nextRequestId('configure-persistence'),
@@ -1176,7 +1182,7 @@ export class TaudClient {
     return response
   }
 
-  async getMuxGraph(afterEventSeq?: number): Promise<TaudMuxGraphState> {
+  async getMuxGraph(afterEventSeq?: number): Promise<PettydMuxGraphState> {
     const response = await this.request({
       type: 'graph-get',
       id: nextRequestId('graph-get'),
@@ -1186,7 +1192,7 @@ export class TaudClient {
     return parseMuxGraphState(response)
   }
 
-  async replaceMuxGraph(snapshotJson: string, expectedRev: number): Promise<TaudMuxGraphState> {
+  async replaceMuxGraph(snapshotJson: string, expectedRev: number): Promise<PettydMuxGraphState> {
     const response = await this.request({
       type: 'graph-replace',
       id: nextRequestId('graph-replace'),
@@ -1194,7 +1200,7 @@ export class TaudClient {
       graphSnapshotJson: snapshotJson,
     })
     if (!response.ok) {
-      const error = responseError(response) as Error & { graph?: TaudMuxGraphState }
+      const error = responseError(response) as Error & { graph?: PettydMuxGraphState }
       if (typeof response.graph_snapshot_json === 'string')
         error.graph = parseMuxGraphState(response)
       throw error
@@ -1202,7 +1208,7 @@ export class TaudClient {
     return parseMuxGraphState(response)
   }
 
-  async waitForMuxGraph(afterEventSeq: number): Promise<TaudMuxGraphState> {
+  async waitForMuxGraph(afterEventSeq: number): Promise<PettydMuxGraphState> {
     const response = await this.request(
       {
         type: 'graph-wait',
@@ -1238,7 +1244,7 @@ export class TaudClient {
       const pingFinishedAt = Date.now()
       this.lastPingDurationMs = pingFinishedAt - pingStartedAt
       this.lastFailedPingAt = pingFinishedAt
-      if (isTaudCompatibilityError(error)) {
+      if (isPettydCompatibilityError(error)) {
         this.lifecycleDaemonOwnership = this.currentDaemonOwnership()
         this.transitionLifecycle('version-mismatch', 'ping-version-mismatch', error)
         throw error
@@ -1255,22 +1261,22 @@ export class TaudClient {
   }
 
   private async startDaemon(): Promise<void> {
-    if (this.disposed) throw new Error('taud client is disposed')
+    if (this.disposed) throw new Error('pettyd client is disposed')
     const startRequestedAt = Date.now()
     this.lastStartRequestedAt = startRequestedAt
     if (await this.canConnect()) {
-      if (this.disposed) throw new Error('taud client is disposed')
+      if (this.disposed) throw new Error('pettyd client is disposed')
       this.lastStartDurationMs = Date.now() - startRequestedAt
       return
     }
-    if (this.disposed) throw new Error('taud client is disposed')
+    if (this.disposed) throw new Error('pettyd client is disposed')
 
-    const binaryPath = findTaudBinary()
+    const binaryPath = findPettydBinary()
     if (!binaryPath) {
       this.lifecycleDaemonOwnership = 'none'
       this.transitionLifecycle('absent', 'binary-not-found')
       throw new Error(
-        `taud binary not found. Checked: ${candidateTaudPaths().join(', ') || '(none)'}`,
+        `pettyd binary not found. Checked: ${candidatePettydPaths().join(', ') || '(none)'}`,
       )
     }
 
@@ -1279,10 +1285,10 @@ export class TaudClient {
       this.spawnedProcess.exitCode !== null ||
       this.spawnedProcess.killed
     ) {
-      if (this.disposed) throw new Error('taud client is disposed')
+      if (this.disposed) throw new Error('pettyd client is disposed')
       const stdio: StdioOptions = this.detachDaemon ? 'ignore' : ['ignore', 'ignore', 'pipe']
       const child = spawn(binaryPath, [], {
-        // Detached/unref'd in normal app runs: taud owns PTYs and should survive Electron restarts.
+        // Detached/unref'd in normal app runs: pettyd owns PTYs and should survive Electron restarts.
         // Smoke runs keep it attached so the test can clean up the temporary-home daemon.
         detached: this.detachDaemon,
         stdio,
@@ -1295,7 +1301,7 @@ export class TaudClient {
       this.lifecycleDaemonOwnership = this.currentDaemonOwnership()
       if (!this.detachDaemon) {
         child.stderr?.on('data', (chunk: Buffer) => {
-          console.warn('[taud stderr]', chunk.toString('utf8').trimEnd())
+          console.warn('[pettyd stderr]', chunk.toString('utf8').trimEnd())
         })
       }
       this.transitionLifecycle('starting', `spawned:${child.pid ?? 'unknown'}`)
@@ -1306,7 +1312,7 @@ export class TaudClient {
         }
         if (!this.disposed) {
           this.transitionLifecycle('crashed', `process-exit:${code ?? 'null'}:${signal ?? 'null'}`)
-          this.scheduleRestart(`taud exited (code ${code ?? 'null'}, signal ${signal ?? 'null'})`)
+          this.scheduleRestart(`pettyd exited (code ${code ?? 'null'}, signal ${signal ?? 'null'})`)
         }
       })
       child.once('error', (error) => {
@@ -1316,7 +1322,7 @@ export class TaudClient {
         }
         if (!this.disposed) {
           this.transitionLifecycle('crashed', 'process-error', error)
-          this.scheduleRestart(`taud process error: ${error.message}`)
+          this.scheduleRestart(`pettyd process error: ${error.message}`)
         }
       })
       if (this.detachDaemon) child.unref()
@@ -1325,10 +1331,10 @@ export class TaudClient {
     const deadline = Date.now() + this.startTimeoutMs
     let lastError: unknown = null
     while (Date.now() < deadline) {
-      if (this.disposed) throw new Error('taud client is disposed')
+      if (this.disposed) throw new Error('pettyd client is disposed')
       try {
         if (await this.canConnect()) {
-          if (this.disposed) throw new Error('taud client is disposed')
+          if (this.disposed) throw new Error('pettyd client is disposed')
           this.lastStartDurationMs = Date.now() - startRequestedAt
           return
         }
@@ -1344,7 +1350,7 @@ export class TaudClient {
         ? this.currentDaemonOwnership()
         : 'none'
     this.transitionLifecycle('stale-socket', 'start-timeout', lastError)
-    throw new Error(`Timed out waiting for taud to start: ${String(lastError ?? 'no response')}`)
+    throw new Error(`Timed out waiting for pettyd to start: ${String(lastError ?? 'no response')}`)
   }
 
   private startHealthChecks(): void {
@@ -1361,20 +1367,20 @@ export class TaudClient {
     try {
       if (await this.canConnect()) return
     } catch (error) {
-      if (isTaudCompatibilityError(error)) {
-        console.warn('[taud-client] taud compatibility check failed:', error)
+      if (isPettydCompatibilityError(error)) {
+        console.warn('[pettyd-client] pettyd compatibility check failed:', error)
         return
       }
       throw error
     }
-    this.scheduleRestart('taud health check failed')
+    this.scheduleRestart('pettyd health check failed')
   }
 
   private scheduleRestart(reason: string): void {
     if (this.disposed || this.restartTimer) return
 
     this.transitionLifecycle('crashed', reason)
-    console.warn(`[taud-client] ${reason}; scheduling restart`)
+    console.warn(`[pettyd-client] ${reason}; scheduling restart`)
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null
       const recovery =
@@ -1382,16 +1388,16 @@ export class TaudClient {
           ? this.restartOwnedDaemon('scheduled-restart-owned')
           : this.ensureRunning()
       void recovery.catch((error) => {
-        console.warn('[taud-client] taud restart failed:', error)
+        console.warn('[pettyd-client] pettyd restart failed:', error)
       })
     }, this.restartBackoffMs)
     this.restartTimer.unref?.()
   }
 
   private async request(
-    request: TaudRequest,
+    request: PettydRequest,
     options: { ensure?: boolean; responseTimeoutMs?: number } = {},
-  ): Promise<TaudRawControlResponse> {
+  ): Promise<PettydRawControlResponse> {
     if (options.ensure !== false) await this.ensureRunning()
 
     const tracedRequest = this.withTrace(request)
@@ -1425,7 +1431,7 @@ export class TaudClient {
     }
   }
 
-  private withTrace(request: TaudRequest): TaudRequest {
+  private withTrace(request: PettydRequest): PettydRequest {
     return { ...request, traceId: requestTraceId(this.clientTraceId, request) }
   }
 }

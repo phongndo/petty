@@ -1,5 +1,5 @@
 {
-  "name": "taud-control-and-stream",
+  "name": "pettyd-control-and-stream",
   "version": 1,
   "control": {
     "protocolVersion": 2,
@@ -17,7 +17,7 @@
     ]
   },
   "stream": {
-    "magic": 1413567302,
+    "magic": 1347703622,
     "version": 1,
     "sessionIdSize": 64,
     "headerSize": 88,

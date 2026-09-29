@@ -11,9 +11,9 @@ pub const Config = struct {
     pid_path: []const u8,
 
     pub fn fromHome(allocator: std.mem.Allocator, home: []const u8) !Config {
-        const root_dir = try std.fs.path.join(allocator, &.{ home, ".tau" });
+        const root_dir = try std.fs.path.join(allocator, &.{ home, ".petty" });
         errdefer allocator.free(root_dir);
-        const database_path = try std.fs.path.join(allocator, &.{ root_dir, "tau.db" });
+        const database_path = try std.fs.path.join(allocator, &.{ root_dir, "petty.db" });
         errdefer allocator.free(database_path);
         const run_dir = try std.fs.path.join(allocator, &.{ root_dir, "run" });
         errdefer allocator.free(run_dir);
@@ -23,9 +23,9 @@ pub const Config = struct {
         errdefer allocator.free(graph_path);
         const graph_previous_path = try std.fs.path.join(allocator, &.{ root_dir, "mux-graph-v1.previous.json" });
         errdefer allocator.free(graph_previous_path);
-        const socket_path = try std.fs.path.join(allocator, &.{ run_dir, "taud.sock" });
+        const socket_path = try std.fs.path.join(allocator, &.{ run_dir, "pettyd.sock" });
         errdefer allocator.free(socket_path);
-        const pid_path = try std.fs.path.join(allocator, &.{ run_dir, "taud.pid" });
+        const pid_path = try std.fs.path.join(allocator, &.{ run_dir, "pettyd.pid" });
 
         return .{
             .root_dir = root_dir,
@@ -52,17 +52,17 @@ pub const Config = struct {
     }
 };
 
-test "config derives tau paths from home" {
+test "config derives petty paths from home" {
     var config = try Config.fromHome(std.testing.allocator, "/tmp/example-home");
     defer config.deinit(std.testing.allocator);
 
-    try std.testing.expectEqualStrings("/tmp/example-home/.tau", config.root_dir);
-    try std.testing.expectEqualStrings("/tmp/example-home/.tau/run/taud.sock", config.socket_path);
-    try std.testing.expectEqualStrings("/tmp/example-home/.tau/mux-graph-v1.json", config.graph_path);
+    try std.testing.expectEqualStrings("/tmp/example-home/.petty", config.root_dir);
+    try std.testing.expectEqualStrings("/tmp/example-home/.petty/run/pettyd.sock", config.socket_path);
+    try std.testing.expectEqualStrings("/tmp/example-home/.petty/mux-graph-v1.json", config.graph_path);
 }
 
 fn configFromHomeForAllocationFailure(allocator: std.mem.Allocator) !void {
-    var config = try Config.fromHome(allocator, "/tmp/tau-oom-home");
+    var config = try Config.fromHome(allocator, "/tmp/petty-oom-home");
     defer config.deinit(allocator);
 }
 

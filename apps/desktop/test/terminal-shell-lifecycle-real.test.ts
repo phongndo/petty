@@ -3,13 +3,13 @@ import test from 'node:test'
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { TaudStreamFrameKind } from '@tau/shared/taud-protocol'
-import { resolveTauStoragePaths } from '@tau/shared/storage-path'
-import { TaudClient } from '../src/main/taud-client'
+import { PettydStreamFrameKind } from '@petty/shared/pettyd-protocol'
+import { resolvePettyStoragePaths } from '@petty/shared/storage-path'
+import { PettydClient } from '../src/main/pettyd-client'
 import { readProcessCwd } from '../src/main/process-title'
-import { decodeTaudExitPayload } from '../src/main/taud-stream'
+import { decodePettydExitPayload } from '../src/main/pettyd-stream'
 
-const binary = resolve(import.meta.dirname, '../../daemon/zig-out/bin/taud')
+const binary = resolve(import.meta.dirname, '../../daemon/zig-out/bin/pettyd')
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms))
 
 async function until(condition: () => boolean | Promise<boolean>, label: string): Promise<void> {
@@ -27,19 +27,19 @@ test(
     skip: process.platform === 'win32' || !existsSync(binary),
   },
   async () => {
-    const home = mkdtempSync(join(tmpdir(), 'tau-shell-exit-'))
+    const home = mkdtempSync(join(tmpdir(), 'petty-shell-exit-'))
     const inner = join(home, 'inner')
     mkdirSync(inner)
     const previousHome = process.env.HOME
-    const previousBinary = process.env.TAUD_PATH
+    const previousBinary = process.env.PETTYD_PATH
     process.env.HOME = home
-    process.env.TAUD_PATH = binary
-    const client = new TaudClient({
-      socketPath: resolveTauStoragePaths(home).socket,
+    process.env.PETTYD_PATH = binary
+    const client = new PettydClient({
+      socketPath: resolvePettyStoragePaths(home).socket,
       detachDaemon: false,
       healthCheckIntervalMs: 0,
     })
-    let stream: Awaited<ReturnType<TaudClient['attachSession']>>['stream'] | undefined
+    let stream: Awaited<ReturnType<PettydClient['attachSession']>>['stream'] | undefined
     try {
       await client.ensureRunning()
       await client.createSession({
@@ -57,10 +57,10 @@ test(
       let output = ''
       let exitCode: number | undefined
       stream.on('frame', (frame) => {
-        if (frame.kind === TaudStreamFrameKind.Output)
+        if (frame.kind === PettydStreamFrameKind.Output)
           output += Buffer.from(frame.payload).toString('utf8')
-        if (frame.kind === TaudStreamFrameKind.Exit)
-          exitCode = decodeTaudExitPayload(frame.payload)?.exitCode
+        if (frame.kind === PettydStreamFrameKind.Exit)
+          exitCode = decodePettydExitPayload(frame.payload)?.exitCode
       })
       stream.start()
       stream.writeInput('sh\n')
@@ -91,8 +91,8 @@ test(
       await client.dispose()
       if (previousHome === undefined) delete process.env.HOME
       else process.env.HOME = previousHome
-      if (previousBinary === undefined) delete process.env.TAUD_PATH
-      else process.env.TAUD_PATH = previousBinary
+      if (previousBinary === undefined) delete process.env.PETTYD_PATH
+      else process.env.PETTYD_PATH = previousBinary
       rmSync(home, { recursive: true, force: true })
     }
   },

@@ -1,6 +1,6 @@
 const std = @import("std");
 
-// taud is POSIX-only. Use the platform's blocking mutex/condition for its existing
+// pettyd is POSIX-only. Use the platform's blocking mutex/condition for its existing
 // synchronous critical sections; Zig 0.16's Io.Condition requires an Io scheduler.
 pub const Mutex = struct {
     inner: std.c.pthread_mutex_t = std.c.PTHREAD_MUTEX_INITIALIZER,

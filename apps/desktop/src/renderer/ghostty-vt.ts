@@ -182,7 +182,7 @@ export class GhosttyVt {
       this.renderState = renderState
       this.rowIterator = rowIterator
       this.cells = cells
-      // Tau controls scrollback independently of daemon's screen-only snapshot.
+      // Petty controls scrollback independently of daemon's screen-only snapshot.
       const view = this.view()
       view.setUint32(this.scratch, 10000, true)
       this.check(api.ghostty_terminal_set(terminal, 28, this.scratch), 'scrollback limit')

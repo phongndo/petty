@@ -548,7 +548,7 @@ test "sqlite database stores mux terminal sessions and FTS excerpts" {
         .status = "live",
         .cols = 80,
         .rows = 24,
-        .event_log_path = "/tmp/events.tauev",
+        .event_log_path = "/tmp/events.pettyev",
         .last_seq = 1,
     });
     var row = (try database.findTerminalSessionById(std.testing.allocator, "session-1")).?;
@@ -636,7 +636,7 @@ test "migrates legacy terminal_sessions with workspace columns" {
             \\    event_log_path, last_seq, started_at
             \\) VALUES (
             \\    'legacy-1', 'term-1', 'ws-1', '/tmp', 'exited', 80, 24,
-            \\    '/tmp/legacy.tauev', 3, datetime('now')
+            \\    '/tmp/legacy.pettyev', 3, datetime('now')
             \\);
         ,
             .{},
@@ -668,7 +668,7 @@ test "migrates legacy terminal_sessions with workspace columns" {
         .status = "live",
         .cols = 120,
         .rows = 40,
-        .event_log_path = "/tmp/new.tauev",
+        .event_log_path = "/tmp/new.pettyev",
         .last_seq = 1,
     });
     var created = (try database.findTerminalSessionById(std.testing.allocator, "session-2")).?;
@@ -732,7 +732,7 @@ test "resumes terminal_sessions rebuild from retained pre_mux backup" {
             \\    event_log_path, last_seq, started_at
             \\) VALUES (
             \\    'resume-1', 'term-resume', 'ws-1', '/tmp', 'exited', 80, 24,
-            \\    '/tmp/resume.tauev', 9, datetime('now')
+            \\    '/tmp/resume.pettyev', 9, datetime('now')
             \\);
         ,
             .{},

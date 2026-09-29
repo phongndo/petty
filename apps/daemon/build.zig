@@ -18,9 +18,9 @@ pub fn build(b: *std.Build) void {
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const sanitize_thread = b.option(bool, "sanitize-thread", "Build taud tests with ThreadSanitizer") orelse false;
-    const fuzz = b.option(bool, "fuzz", "Build taud tests with Zig fuzz instrumentation") orelse false;
-    const strip_binary = b.option(bool, "strip", "Strip the installed taud binary") orelse false;
+    const sanitize_thread = b.option(bool, "sanitize-thread", "Build pettyd tests with ThreadSanitizer") orelse false;
+    const fuzz = b.option(bool, "fuzz", "Build pettyd tests with Zig fuzz instrumentation") orelse false;
+    const strip_binary = b.option(bool, "strip", "Strip the installed pettyd binary") orelse false;
 
     const options = b.addOptions();
     options.addOption([]const u8, "vt_backend", "ghostty_native");
@@ -32,7 +32,7 @@ pub fn build(b: *std.Build) void {
     });
     const sqlite_module = zig_sqlite.module("sqlite");
 
-    const mod = b.addModule("taud", .{
+    const mod = b.addModule("pettyd", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
@@ -54,7 +54,7 @@ pub fn build(b: *std.Build) void {
         .sanitize_thread = sanitize_thread,
         .fuzz = fuzz,
         .strip = strip_binary,
-        .imports = &.{.{ .name = "taud", .module = mod }},
+        .imports = &.{.{ .name = "pettyd", .module = mod }},
     });
     exe_mod.addOptions("build_options", options);
     exe_mod.addIncludePath(b.path(".ghostty-vt/include"));
@@ -62,14 +62,14 @@ pub fn build(b: *std.Build) void {
     if (target.result.os.tag == .linux) exe_mod.linkSystemLibrary("util", .{});
 
     const exe = b.addExecutable(.{
-        .name = "taud",
+        .name = "pettyd",
         .root_module = exe_mod,
         .use_llvm = true,
     });
 
     b.installArtifact(exe);
 
-    const run_step = b.step("run", "Run taud");
+    const run_step = b.step("run", "Run pettyd");
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| run_cmd.addArgs(args);
@@ -103,7 +103,7 @@ pub fn build(b: *std.Build) void {
     const fmt_step = b.step("test:fmt", "Check Zig formatting");
     fmt_step.dependOn(&fmt_check.step);
 
-    const compile_step = b.step("test:compile", "Compile taud unit tests without running them");
+    const compile_step = b.step("test:compile", "Compile pettyd unit tests without running them");
     compile_step.dependOn(&mod_tests.step);
     compile_step.dependOn(&exe_tests.step);
 
@@ -113,7 +113,7 @@ pub fn build(b: *std.Build) void {
     const sanitizer_step = b.step("test:sanitize-thread", "Run tests with ThreadSanitizer; pass -Dsanitize-thread=true");
     sanitizer_step.dependOn(&mod_test_run.step);
 
-    const check_step = b.step("check", "Compile and format-check taud without running tests");
+    const check_step = b.step("check", "Compile and format-check pettyd without running tests");
     check_step.dependOn(&exe.step);
     check_step.dependOn(&mod_tests.step);
     check_step.dependOn(&exe_tests.step);

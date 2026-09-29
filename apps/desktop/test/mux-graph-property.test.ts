@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { collectPaneIds, assertSplitInvariants, type MuxPaneTreeNode } from '@tau/shared/mux-graph'
-import { selectMuxGraphSnapshot, useTauStore } from '../src/renderer/state/store'
+import {
+  collectPaneIds,
+  assertSplitInvariants,
+  type MuxPaneTreeNode,
+} from '@petty/shared/mux-graph'
+import { selectMuxGraphSnapshot, usePettyStore } from '../src/renderer/state/store'
 
 function random(seed: number): () => number {
   let state = seed >>> 0
@@ -24,7 +28,7 @@ function validateNode(node: MuxPaneTreeNode): void {
 }
 
 function validateProjection(): void {
-  const graph = selectMuxGraphSnapshot(useTauStore.getState())
+  const graph = selectMuxGraphSnapshot(usePettyStore.getState())
   const paneIds = new Set(graph.panes.map((pane) => pane.id))
   const referenced: string[] = []
   const tabIds = new Set(graph.tabs.map((tab) => tab.id))
@@ -41,7 +45,7 @@ function validateProjection(): void {
 test('random pane-tree mutation sequences preserve mux invariants', () => {
   for (let seed = 1; seed <= 100; seed += 1) {
     const rng = random(seed)
-    useTauStore.getState().applyMuxGraph({
+    usePettyStore.getState().applyMuxGraph({
       schemaVersion: 1,
       graphRev: 0,
       eventSeq: 0,
@@ -52,7 +56,7 @@ test('random pane-tree mutation sequences preserve mux invariants', () => {
     })
 
     for (let step = 0; step < 100; step += 1) {
-      const state = useTauStore.getState()
+      const state = usePettyStore.getState()
       const action = Math.floor(rng() * 6)
       if (action === 0 || state.tabs.length === 0) state.newTab()
       else if (action === 1 && state.activePaneId)

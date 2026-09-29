@@ -38,12 +38,12 @@ function readPositiveNumberEnv(name: string, fallback: number, max: number): num
 }
 
 const sustainedBudget: SustainedBudget = {
-  totalMiB: readPositiveNumberEnv('TAU_TERMINAL_BENCH_MIB', 8, 1024),
-  chunkKiB: readPositiveNumberEnv('TAU_TERMINAL_BENCH_CHUNK_KIB', 64, 1024),
-  minWebglMBps: readPositiveNumberEnv('TAU_TERMINAL_MIN_WEBGL_MBPS', 8, 1024),
-  maxP95FrameMs: readPositiveNumberEnv('TAU_TERMINAL_MAX_P95_FRAME_MS', 33, 1000),
-  maxFramesOver16: readPositiveNumberEnv('TAU_TERMINAL_MAX_FRAMES_OVER_16', 120, 1_000_000),
-  enforce: process.env.TAU_TERMINAL_BENCH_ENFORCE === '1',
+  totalMiB: readPositiveNumberEnv('PETTY_TERMINAL_BENCH_MIB', 8, 1024),
+  chunkKiB: readPositiveNumberEnv('PETTY_TERMINAL_BENCH_CHUNK_KIB', 64, 1024),
+  minWebglMBps: readPositiveNumberEnv('PETTY_TERMINAL_MIN_WEBGL_MBPS', 8, 1024),
+  maxP95FrameMs: readPositiveNumberEnv('PETTY_TERMINAL_MAX_P95_FRAME_MS', 33, 1000),
+  maxFramesOver16: readPositiveNumberEnv('PETTY_TERMINAL_MAX_FRAMES_OVER_16', 120, 1_000_000),
+  enforce: process.env.PETTY_TERMINAL_BENCH_ENFORCE === '1',
 }
 
 function packageFileUrl(packageName: string, relativePath: string): string {
@@ -399,7 +399,7 @@ function printResults(samples: readonly BenchSample[]): void {
     byName.set(sample.name, item)
   }
 
-  console.log('Tau xterm.js renderer benchmark')
+  console.log('Petty xterm.js renderer benchmark')
   console.log('viewport: 120x40 cells, surface: 1080x720 CSS px')
   console.log('')
   console.log(

@@ -1,18 +1,18 @@
 import { Schema } from 'effect'
 import type { MessagePortMain } from 'electron'
-import { TaudStreamFrameKind, type AttachSessionMode } from '@tau/shared/taud-protocol'
-import { defaultSettings } from '@tau/shared/preferences'
+import { PettydStreamFrameKind, type AttachSessionMode } from '@petty/shared/pettyd-protocol'
+import { defaultSettings } from '@petty/shared/preferences'
 import { readSettings } from './settings-store'
 import {
   type PtyClientMessage,
   PtyClientMessageSchema,
   type PtyServiceMessage,
-  type TaudPtyBridgeDiagnostics,
+  type PettydPtyBridgeDiagnostics,
 } from './pty-protocol'
-import type { SettingsData } from '@tau/shared/session'
-import { TaudClient, type TaudControlResponse, type TaudSessionStream } from './taud-client'
+import type { SettingsData } from '@petty/shared/session'
+import { PettydClient, type PettydControlResponse, type PettydSessionStream } from './pettyd-client'
 import { sessionChannelBacklogExceeded } from './session-channel-backpressure'
-import { decodeTaudExitPayload, decodeTaudResizePayload } from './taud-stream'
+import { decodePettydExitPayload, decodePettydResizePayload } from './pettyd-stream'
 import { processTitleFromShell, readProcessCwd, readProcessTitle } from './process-title'
 
 const SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000
@@ -21,13 +21,13 @@ const PROCESS_TITLE_POLL_MS = 1500
 /** Convert legacy number[] input in bounded chunks instead of dropping large pastes. */
 const SESSION_INPUT_ARRAY_CHUNK_BYTES = 64 * 1024
 
-export type TaudPtyBridgeOptions = {
-  readonly client?: TaudClient
+export type PettydPtyBridgeOptions = {
+  readonly client?: PettydClient
   readonly defaultShell?: string
 }
 
 type BridgeSession = {
-  stream: TaudSessionStream | null
+  stream: PettydSessionStream | null
   cols: number
   rows: number
   archived: boolean
@@ -63,8 +63,8 @@ function decodeClientMessage(message: unknown): PtyClientMessage | null {
 
 function markMainTerminalReceipt(): void {
   if (typeof performance === 'undefined' || typeof performance.mark !== 'function') return
-  performance.clearMarks('tau:terminal:main-receipt')
-  performance.mark('tau:terminal:main-receipt')
+  performance.clearMarks('petty:terminal:main-receipt')
+  performance.mark('petty:terminal:main-receipt')
 }
 
 function normalizeError(error: unknown): Error {
@@ -103,11 +103,11 @@ function sanitizeArgv(argv: readonly string[] | undefined): string[] | undefined
   return normalized.length > 0 ? normalized : undefined
 }
 
-function responseSeq(response: TaudControlResponse): number {
+function responseSeq(response: PettydControlResponse): number {
   return typeof response.last_seq === 'number' ? response.last_seq : 0
 }
 
-function responseSize(response: TaudControlResponse, fallback: { cols: number; rows: number }) {
+function responseSize(response: PettydControlResponse, fallback: { cols: number; rows: number }) {
   const cols =
     typeof response.cols === 'number' && response.cols > 0 ? response.cols : fallback.cols
   const rows =
@@ -121,7 +121,7 @@ function defaultShellArgv(defaultShell?: string): string[] {
   return [shell]
 }
 
-function responseAttachMode(response: TaudControlResponse): AttachSessionMode {
+function responseAttachMode(response: PettydControlResponse): AttachSessionMode {
   switch (response.attach_kind) {
     case 'command-resume':
       return 'command-resume'
@@ -133,7 +133,7 @@ function responseAttachMode(response: TaudControlResponse): AttachSessionMode {
   }
 }
 
-function waitForAttachStreamReady(stream: TaudSessionStream): Promise<void> {
+function waitForAttachStreamReady(stream: PettydSessionStream): Promise<void> {
   return new Promise((resolve, reject) => {
     let settled = false
     const timeout = setTimeout(() => {
@@ -164,7 +164,7 @@ function waitForAttachStreamReady(stream: TaudSessionStream): Promise<void> {
     }
 
     function onClose() {
-      settle(new Error('taud attach stream closed before it became ready'))
+      settle(new Error('pettyd attach stream closed before it became ready'))
     }
 
     stream.on('frame', onFrame)
@@ -173,14 +173,14 @@ function waitForAttachStreamReady(stream: TaudSessionStream): Promise<void> {
   })
 }
 
-export class TaudPtyBridge {
-  private readonly client: TaudClient
+export class PettydPtyBridge {
+  private readonly client: PettydClient
   private readonly ownsClient: boolean
   private readonly defaultShell?: string
   private port: MessagePortMain | null = null
   private readonly sessions = new Map<string, BridgeSession>()
   private readonly sessionChannels = new Map<string, SessionChannel>()
-  private readonly supersededAttachStreams = new WeakSet<TaudSessionStream>()
+  private readonly supersededAttachStreams = new WeakSet<PettydSessionStream>()
   private readonly sessionAttachGenerations = new Map<string, number>()
   private readonly cleanupTimer: ReturnType<typeof setInterval>
   private readonly processTitleTimer: ReturnType<typeof setInterval>
@@ -198,8 +198,8 @@ export class TaudPtyBridge {
   private lastFailureAt: number | undefined
   private lastError: string | undefined
 
-  constructor(options: TaudPtyBridgeOptions = {}) {
-    this.client = options.client ?? new TaudClient()
+  constructor(options: PettydPtyBridgeOptions = {}) {
+    this.client = options.client ?? new PettydClient()
     this.ownsClient = !options.client
     this.defaultShell = options.defaultShell
     this.cleanupTimer = setInterval(() => {
@@ -225,7 +225,7 @@ export class TaudPtyBridge {
         persistInput: persistence.persistInput,
       })
     } catch (error) {
-      console.warn('[taud-bridge] Failed to sync persistence settings:', error)
+      console.warn('[pettyd-bridge] Failed to sync persistence settings:', error)
     }
   }
 
@@ -328,7 +328,7 @@ export class TaudPtyBridge {
     port.start()
   }
 
-  getDiagnostics(): TaudPtyBridgeDiagnostics {
+  getDiagnostics(): PettydPtyBridgeDiagnostics {
     let activeStreams = 0
     for (const session of this.sessions.values()) {
       if (session.stream) activeStreams += 1
@@ -450,15 +450,15 @@ export class TaudPtyBridge {
         // remounted during tab/layout changes. Returning a bare ready message here leaves the new
         // terminal view with no current-screen snapshot or startup bytes because the previous stream
         // already consumed them. Treat it as a real live reattach instead: close the old subscriber
-        // socket and continue through taud attach so the daemon sends a fresh snapshot.
+        // socket and continue through pettyd attach so the daemon sends a fresh snapshot.
         existing.cols = cols
         existing.rows = rows
         this.supersededAttachStreams.add(existing.stream)
         this.closeSessionStream(sessionId)
       }
 
-      let attachResponse: TaudControlResponse
-      let stream: TaudSessionStream
+      let attachResponse: PettydControlResponse
+      let stream: PettydSessionStream
       let attachMode: AttachSessionMode = 'live'
       if (options.forceCreate) {
         await this.createShellSession(sessionId, terminalId, cols, rows, cwd, sessionOptions)
@@ -519,7 +519,7 @@ export class TaudPtyBridge {
         await attachReady
       } catch (error) {
         // A remount/new renderer can supersede an in-flight attach for the same session. In that
-        // case the old stream closes because Tau intentionally replaced it; don't report that stale
+        // case the old stream closes because Petty intentionally replaced it; don't report that stale
         // close to the renderer or it can clear the ready state for the newer attach.
         if (!isCurrentAttach() || this.supersededAttachStreams.has(stream)) return
         this.closeSessionStream(sessionId)
@@ -547,7 +547,7 @@ export class TaudPtyBridge {
     rows: number,
     cwd: string | undefined,
     options: { argv?: readonly string[] },
-  ): Promise<TaudControlResponse> {
+  ): Promise<PettydControlResponse> {
     return this.client.createSession({
       sessionId,
       terminalId,
@@ -595,7 +595,7 @@ export class TaudPtyBridge {
     }
   }
 
-  private wireStream(sessionId: string, session: BridgeSession, stream: TaudSessionStream): void {
+  private wireStream(sessionId: string, session: BridgeSession, stream: PettydSessionStream): void {
     stream.on('frame', (frame) => {
       if (
         frame.sessionId !== sessionId ||
@@ -605,13 +605,13 @@ export class TaudPtyBridge {
         return
 
       switch (frame.kind) {
-        case TaudStreamFrameKind.Output: {
+        case PettydStreamFrameKind.Output: {
           markMainTerminalReceipt()
           if (frame.payload.length > 0) this.postData(sessionId, frame.payload, frame.seq)
           break
         }
-        case TaudStreamFrameKind.Resize: {
-          const resize = decodeTaudResizePayload(frame.payload)
+        case PettydStreamFrameKind.Resize: {
+          const resize = decodePettydResizePayload(frame.payload)
           if (!resize) return
           session.cols = resize.cols
           session.rows = resize.rows
@@ -625,13 +625,13 @@ export class TaudPtyBridge {
           })
           break
         }
-        case TaudStreamFrameKind.Snapshot: {
+        case PettydStreamFrameKind.Snapshot: {
           if (session.archived) return
           this.postSnapshot(sessionId, frame.payload, frame.seq)
           break
         }
-        case TaudStreamFrameKind.Exit: {
-          const exit = decodeTaudExitPayload(frame.payload) ?? { exitCode: -1 }
+        case PettydStreamFrameKind.Exit: {
+          const exit = decodePettydExitPayload(frame.payload) ?? { exitCode: -1 }
           this.post({ type: 'exit', sessionId, info: exit })
           this.closeSessionStream(sessionId)
           break
@@ -703,7 +703,7 @@ export class TaudPtyBridge {
     try {
       await this.client.clearHistory(sessionIds)
     } catch (error) {
-      console.warn('[taud-bridge] Clear history failed:', error)
+      console.warn('[pettyd-bridge] Clear history failed:', error)
       return
     }
 
@@ -726,7 +726,7 @@ export class TaudPtyBridge {
         activeSessionIds: [...this.sessions.keys()],
       })
     } catch (error) {
-      console.warn('[taud-bridge] Session cleanup failed:', error)
+      console.warn('[pettyd-bridge] Session cleanup failed:', error)
     }
   }
 
@@ -802,7 +802,7 @@ export class TaudPtyBridge {
     if (!channel.backpressured) {
       channel.backpressured = true
       console.warn(
-        `[taud-bridge] session ${sessionId} MessagePort backlog exceeded; pausing stream until renderer catches up`,
+        `[pettyd-bridge] session ${sessionId} MessagePort backlog exceeded; pausing stream until renderer catches up`,
       )
     }
     this.closeSessionStream(sessionId)

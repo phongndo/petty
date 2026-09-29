@@ -22,9 +22,9 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const daemonRoot = resolve(repoRoot, 'apps/daemon')
 const [command = 'build', ...rawArgs] = process.argv.slice(2)
 const passthroughArgs = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs
-const optimizeMode = process.env.TAUD_OPTIMIZE ?? (command === 'build' ? 'ReleaseFast' : 'Debug')
+const optimizeMode = process.env.PETTYD_OPTIMIZE ?? (command === 'build' ? 'ReleaseFast' : 'Debug')
 const validOptimizeModes = new Set(['Debug', 'ReleaseFast', 'ReleaseSmall'])
-if (!validOptimizeModes.has(optimizeMode)) fail(`Invalid TAUD_OPTIMIZE mode: ${optimizeMode}`)
+if (!validOptimizeModes.has(optimizeMode)) fail(`Invalid PETTYD_OPTIMIZE mode: ${optimizeMode}`)
 
 function fail(message: string): never {
   console.error(message)
@@ -78,7 +78,7 @@ function output(command: string, args: readonly string[], cwd = daemonRoot): str
 function assertZigVersion(): string {
   const version = output('zig', ['version'])
   if (version !== '0.16.0') {
-    fail(`taud requires Zig 0.16.0; found ${version}. Run inside nix develop`)
+    fail(`pettyd requires Zig 0.16.0; found ${version}. Run inside nix develop`)
   }
   return version
 }
@@ -153,7 +153,7 @@ function darwinTarget(): string {
 function darwinBuildOptionsPath(): string {
   const cacheDir = resolve(daemonRoot, '.zig-cache')
   mkdirSync(cacheDir, { recursive: true })
-  const path = resolve(cacheDir, 'taud-build-options.zig')
+  const path = resolve(cacheDir, 'pettyd-build-options.zig')
   writeFileIfChanged(path, 'pub const vt_backend = "ghostty_native";\n')
   return path
 }
@@ -194,16 +194,22 @@ function directCompileArgs({
   if (root === 'main') {
     args.push(
       '--dep',
-      'taud',
+      'pettyd',
       '-Mroot=src/main.zig',
       '--dep',
       'sqlite',
       '--dep',
-      'build_options=taud_build_options',
-      '-Mtaud=src/root.zig',
+      'build_options=pettyd_build_options',
+      '-Mpettyd=src/root.zig',
     )
   } else {
-    args.push('--dep', 'sqlite', '--dep', 'build_options=taud_build_options', '-Mroot=src/root.zig')
+    args.push(
+      '--dep',
+      'sqlite',
+      '--dep',
+      'build_options=pettyd_build_options',
+      '-Mroot=src/root.zig',
+    )
   }
 
   args.push(
@@ -212,7 +218,7 @@ function directCompileArgs({
     '-I',
     sqliteAmalgamationPath,
     `-Msqlite=${resolve(zigSqlitePath, 'sqlite.zig')}`,
-    `-Mtaud_build_options=${buildOptionsPath}`,
+    `-Mpettyd_build_options=${buildOptionsPath}`,
     '-I',
     resolve(daemonRoot, '.ghostty-vt/include'),
     ghosttyArchive,
@@ -226,7 +232,7 @@ function directCompileArgs({
 function buildDirect(): string {
   const binDir = resolve(daemonRoot, 'zig-out/bin')
   mkdirSync(binDir, { recursive: true })
-  const exeName = process.platform === 'win32' ? 'taud.exe' : 'taud'
+  const exeName = process.platform === 'win32' ? 'pettyd.exe' : 'pettyd'
   const binPath = resolve(binDir, exeName)
   run('zig', directCompileArgs({ root: 'main', binPath }))
   if (optimizeMode !== 'Debug' && process.platform === 'darwin') {
@@ -241,7 +247,7 @@ function buildDirect(): string {
 }
 
 function withTemporaryHome<T>(callback: (home: string) => T): T {
-  const home = mkdtempSync(resolve(tmpdir(), 'taud-home-'))
+  const home = mkdtempSync(resolve(tmpdir(), 'pettyd-home-'))
   try {
     return callback(home)
   } finally {
@@ -250,7 +256,7 @@ function withTemporaryHome<T>(callback: (home: string) => T): T {
 }
 
 function leakCheckEnv(home: string): NodeJS.ProcessEnv {
-  return { ...process.env, HOME: home, TAUD_DEBUG_ALLOC: '1' }
+  return { ...process.env, HOME: home, PETTYD_DEBUG_ALLOC: '1' }
 }
 
 function runLeakCheck(command: string, args: readonly string[], options: RunOptions = {}): void {
@@ -272,24 +278,24 @@ function runLeakCheck(command: string, args: readonly string[], options: RunOpti
 function testAndBuildDirect(): void {
   const cacheDir = resolve(daemonRoot, '.zig-cache')
   mkdirSync(cacheDir, { recursive: true })
-  run('zig', directCompileArgs({ root: 'root', binPath: resolve(cacheDir, 'taud-root-test') }))
-  run('zig', directCompileArgs({ root: 'main', binPath: resolve(cacheDir, 'taud-main-test') }))
+  run('zig', directCompileArgs({ root: 'root', binPath: resolve(cacheDir, 'pettyd-root-test') }))
+  run('zig', directCompileArgs({ root: 'main', binPath: resolve(cacheDir, 'pettyd-main-test') }))
 }
 
 assertZigVersion()
 
-if (process.env.TAUD_SKIP_NATIVE === '1') {
+if (process.env.PETTYD_SKIP_NATIVE === '1') {
   switch (command) {
     case 'build':
     case 'test':
     case 'check':
     case 'leak-check':
-      console.warn(`Skipping taud ${command}; TAUD_SKIP_NATIVE=1`)
+      console.warn(`Skipping pettyd ${command}; PETTYD_SKIP_NATIVE=1`)
       process.exit(0)
     case 'run':
-      fail('Cannot run taud when TAUD_SKIP_NATIVE=1')
+      fail('Cannot run pettyd when PETTYD_SKIP_NATIVE=1')
     default:
-      fail(`Unknown taud zig command: ${command}`)
+      fail(`Unknown pettyd zig command: ${command}`)
   }
 }
 
@@ -299,18 +305,18 @@ if (process.platform === 'win32') {
     case 'test':
     case 'check':
     case 'leak-check':
-      console.warn(`Skipping taud ${command} on Windows; taud is POSIX-only`)
+      console.warn(`Skipping pettyd ${command} on Windows; pettyd is POSIX-only`)
       process.exit(0)
     case 'run':
-      fail('Cannot run taud on Windows; taud is POSIX-only')
+      fail('Cannot run pettyd on Windows; pettyd is POSIX-only')
     default:
-      fail(`Unknown taud zig command: ${command}`)
+      fail(`Unknown pettyd zig command: ${command}`)
   }
 }
 
 ensureGhosttyNative()
 
-if (process.platform !== 'darwin' || process.env.TAUD_USE_ZIG_BUILD === '1') {
+if (process.platform !== 'darwin' || process.env.PETTYD_USE_ZIG_BUILD === '1') {
   switch (command) {
     case 'build':
       run('zig', [
@@ -332,7 +338,7 @@ if (process.platform !== 'darwin' || process.env.TAUD_USE_ZIG_BUILD === '1') {
       runLeakCheck('zig', ['build', 'run', '--', '--check'])
       break
     default:
-      fail(`Unknown taud zig command: ${command}`)
+      fail(`Unknown pettyd zig command: ${command}`)
   }
   process.exit(0)
 }
@@ -360,5 +366,5 @@ switch (command) {
     break
   }
   default:
-    fail(`Unknown taud zig command: ${command}`)
+    fail(`Unknown pettyd zig command: ${command}`)
 }

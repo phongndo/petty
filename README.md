@@ -1,6 +1,6 @@
-# Tau
+# Petty
 
-Tau is an experiment to see how fast a native Electron terminal multiplexer can be. Each pane is a Tau-owned canvas terminal surface driven by [libghostty-vt](https://github.com/ghostty-org/ghostty) compiled to WebAssembly, backed by a Zig daemon (`taud`). It opens into a shell; tabs and splits organize terminals, while daemon-owned PTYs can survive a window or renderer restart.
+Petty is an experiment to see how fast a native Electron terminal multiplexer can be. Each pane is a Petty-owned canvas terminal surface driven by [libghostty-vt](https://github.com/ghostty-org/ghostty) compiled to WebAssembly, backed by a Zig daemon (`pettyd`). It opens into a shell; tabs and splits organize terminals, while daemon-owned PTYs can survive a window or renderer restart.
 
 Today the desktop app has a sidebar-based mux UI, terminal search, preferences (appearance, terminal, shortcuts, sessions), and session recovery. A structured control CLI and extension runtime are product goals, **not shipped APIs**. Pi, Git, and project workflows are not built into the terminal.
 
@@ -22,7 +22,7 @@ pnpm dev
 The dev shell provides Node and the pinned pnpm and Zig toolchains. On NixOS, the install script also prepares the Electron binary for the host. For non-interactive commands use `nix develop -c <command>`.
 
 ```bash
-pnpm build   # Build the desktop app and taud
+pnpm build   # Build the desktop app and pettyd
 pnpm start   # Run the built app
 pnpm check   # Lint, format, TypeScript, curated tests, and Zig tests
 ```

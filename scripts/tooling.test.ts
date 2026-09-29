@@ -24,7 +24,7 @@ async function runScript(args: string[], options: { cwd?: string; env?: NodeJS.P
 }
 
 async function installerFixture(run: (root: string) => Promise<void>): Promise<void> {
-  const root = await mkdtemp(join(tmpdir(), 'tau-electron-installer-'))
+  const root = await mkdtemp(join(tmpdir(), 'petty-electron-installer-'))
   try {
     const electron = join(root, 'apps/desktop/node_modules/electron')
     await mkdir(join(electron, 'dist'), { recursive: true })
@@ -72,7 +72,7 @@ test('tooling benchmark refuses to label pnpm workspace scripts as a Bun baselin
     '--cwd',
     resolve(import.meta.dirname, '..'),
     '--output',
-    join(tmpdir(), 'tau-should-not-write-benchmark.json'),
+    join(tmpdir(), 'petty-should-not-write-benchmark.json'),
   ])
   assert.notEqual(exitCode, 0)
   assert.ok(stderr.includes('Measure the matching revision'))

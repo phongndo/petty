@@ -6,7 +6,7 @@ const c = @cImport({
 pub const backend_name = "ghostty_native";
 pub const supports_current_screen_snapshots = true;
 
-const current_screen_magic = [_]u8{ 0x54, 0x41, 0x55, 0x47, 0x56, 0x54, 0x01, 0x00 }; // TAUGVT\1\0
+const current_screen_magic = [_]u8{ 0x50, 0x45, 0x54, 0x47, 0x56, 0x54, 0x01, 0x00 }; // PETGVT\1\0
 const current_screen_version: u16 = 1;
 const current_screen_header_size: usize = 26;
 const max_current_screen_bytes: usize = 16 * 1024 * 1024;
@@ -111,7 +111,7 @@ pub const Terminal = struct {
         return formattedAlloc(self.handle, allocator, c.GHOSTTY_FORMATTER_FORMAT_PLAIN, true, false);
     }
 
-    /// Serialize only the active visible screen as VT restore bytes in Tau's
+    /// Serialize only the active visible screen as VT restore bytes in Petty's
     /// existing versioned envelope. Historical scrollback is not included.
     pub fn serializeCurrentScreenAlloc(self: *const Terminal, allocator: std.mem.Allocator) ![]u8 {
         const body = try formattedAlloc(self.handle, allocator, c.GHOSTTY_FORMATTER_FORMAT_VT, false, true);

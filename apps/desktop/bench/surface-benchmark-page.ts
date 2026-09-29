@@ -1,16 +1,16 @@
 /* Renderer half of `pnpm bench:surface`. Bundled per source tree by surface-benchmark.ts.
  *
- * Drives the production TauTerminal canvas surface, GhosttyVt WASM core and sequenced output
+ * Drives the production PettyTerminal canvas surface, GhosttyVt WASM core and sequenced output
  * writer in a sandboxed renderer. Output frames arrive as MessagePort tasks under the same
  * unacknowledged-frame/byte window that Electron main enforces, and every flood scenario checks
  * the final screen. No PTY, daemon, preload or contextBridge is involved.
  *
  * Timing boundaries: `parse` is GhosttyVt.write (WASM VT parse), `render` is GhosttyVt.render
- * (render-state extraction), `draw` is TauTerminal.draw (render + canvas commands). Canvas
+ * (render-state extraction), `draw` is PettyTerminal.draw (render + canvas commands). Canvas
  * rasterization and compositor presentation happen later and are NOT included; under Xvfb they
  * use Chromium's software fallback and establish nothing about GPU presentation.
  */
-import { TauTerminal } from '../src/renderer/tau-terminal'
+import { PettyTerminal } from '../src/renderer/petty-terminal'
 import * as writerModule from '../src/renderer/terminal-output-writer'
 
 const { createSequencedTerminalWriter } = writerModule
@@ -22,7 +22,7 @@ const { inputBoostPriority: inputBoost, noteTerminalInput } = writerModule as {
 
 type Json = Record<string, unknown>
 type Pane = {
-  term: TauTerminal
+  term: PettyTerminal
   host: HTMLElement
   writer: ReturnType<typeof createSequencedTerminalWriter>
   feeder: Feeder
@@ -45,19 +45,22 @@ const FRAME_BYTES = 4096
 // ─── instrumentation ────────────────────────────────────────────────────────────────────────────
 
 const samples = { parse: [] as number[], render: [] as number[], draw: [] as number[] }
-const drawsByTerm = new Map<TauTerminal, number>()
+const drawsByTerm = new Map<PettyTerminal, number>()
 /** Render-state extractions per VT core: a hidden pane that skips work shows no renders. */
 const rendersByVt = new Map<unknown, number>()
 let hookedVt = false
 let measuring = false
 let longTasks: number[] = []
-let onDrawn: ((term: TauTerminal, end: number) => void) | null = null
+let onDrawn: ((term: PettyTerminal, end: number) => void) | null = null
 
-function hookSurface(term: TauTerminal): void {
-  const proto = TauTerminal.prototype as unknown as Record<string, (...args: unknown[]) => unknown>
+function hookSurface(term: PettyTerminal): void {
+  const proto = PettyTerminal.prototype as unknown as Record<
+    string,
+    (...args: unknown[]) => unknown
+  >
   if (!(proto.draw as { hooked?: boolean }).hooked) {
     const draw = proto.draw
-    const wrapped = function (this: TauTerminal, ...args: unknown[]) {
+    const wrapped = function (this: PettyTerminal, ...args: unknown[]) {
       const start = performance.now()
       const result = draw.apply(this, args)
       const end = performance.now()
@@ -348,7 +351,7 @@ class Feeder {
 }
 
 async function createPane(container: HTMLElement): Promise<Pane> {
-  const term = await TauTerminal.create()
+  const term = await PettyTerminal.create()
   hookSurface(term)
   term.open(container)
   const size = term.proposeDimensions()
@@ -477,10 +480,10 @@ async function startup(): Promise<Json> {
     created.push(performance.now() - start)
     const drawn = new Promise<number>((resolve) => {
       onDrawn = (term, end) => {
-        if (term === pane.term && readerText(pane).includes('user@tau')) resolve(end)
+        if (term === pane.term && readerText(pane).includes('user@petty')) resolve(end)
       }
     })
-    pane.term.write('user@tau:~$ ')
+    pane.term.write('user@petty:~$ ')
     firstFrame.push((await drawn) - start)
     onDrawn = null
     panes.push(pane)
