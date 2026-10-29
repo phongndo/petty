@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -10,6 +10,7 @@ export const GHOSTTY_REVISION = '622b4eecd7d2ce1a10930537c17f0d61abdba817'
 // older, revision-matching artifact that lacks Kitty exports or traps when images arrive.
 export const GHOSTTY_WEB_ARTIFACT_ID = `${GHOSTTY_REVISION}/petty-browser-graphics-v1`
 const ARCHIVE_SHA256 = '762d7bf7778a5590dee92501e9c246f758b54925401ca6c5f72838009b1379ff'
+const FETCH_ATTEMPTS = 5
 
 export function withGhosttySource<T>(build: (source: string) => T): T {
   const version = execFileSync('zig', ['version'], { encoding: 'utf8' }).trim()
@@ -40,4 +41,28 @@ export function withGhosttySource<T>(build: (source: string) => T): T {
   } finally {
     rmSync(work, { recursive: true, force: true })
   }
+}
+
+// Ghostty's Zig packages come from several hosts, and Codeberg answers bursts of CI fetches with
+// 429s. Configure with --help first: Zig fetches exactly the packages these options need, lazy
+// ones included, and builds nothing. Retry only fetch failures; the build itself then fetches nothing.
+export function zigBuildGhostty(source: string, args: string[]): void {
+  for (let attempt = 1; ; attempt++) {
+    const configure = spawnSync('zig', ['build', ...args, '--help'], {
+      cwd: source,
+      encoding: 'utf8',
+      stdio: ['ignore', 'ignore', 'pipe'],
+    })
+    if (configure.status === 0) break
+    const stderr = configure.stderr ?? ''
+    process.stderr.write(stderr)
+    // Zig reports a failed fetch against the build.zig.zon entry that names the URL.
+    if (!/build\.zig\.zon:\d+:\d+: error:/.test(stderr) || attempt === FETCH_ATTEMPTS) {
+      throw new Error(`Cannot configure Ghostty: zig build ${args.join(' ')}`)
+    }
+    const delay = 10_000 * 2 ** (attempt - 1)
+    console.error(`Retrying Ghostty package fetch in ${delay / 1000}s`)
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
+  }
+  execFileSync('zig', ['build', ...args], { cwd: source, stdio: 'inherit' })
 }

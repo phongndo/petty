@@ -1,7 +1,6 @@
 #!/usr/bin/env tsx
 
 /** Build the upstream C ABI as a browser-loadable WASM module, without ghostty-web's fork. */
-import { execFileSync } from 'node:child_process'
 import {
   copyFileSync,
   existsSync,
@@ -11,7 +10,12 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { GHOSTTY_REVISION, GHOSTTY_WEB_ARTIFACT_ID, withGhosttySource } from './ghostty-source'
+import {
+  GHOSTTY_REVISION,
+  GHOSTTY_WEB_ARTIFACT_ID,
+  withGhosttySource,
+  zigBuildGhostty,
+} from './ghostty-source'
 
 const OUTPUT_DIR = resolve(import.meta.dirname, '../apps/desktop/public')
 
@@ -284,12 +288,11 @@ function validateWasm(bytes: Uint8Array): void {
 
 withGhosttySource((source) => {
   enableBrowserGraphics(source)
-  execFileSync(
-    'zig',
+  zigBuildGhostty(
+    source,
     // ReleaseSmall currently miscompiles Ghostty Kitty graphics on wasm32 (OOB on transmit).
     // ReleaseSafe preserves bounds checks and passes the image-transmission smoke test.
-    ['build', '-Demit-lib-vt=true', '-Dtarget=wasm32-freestanding', '-Doptimize=ReleaseSafe'],
-    { cwd: source, stdio: 'inherit' },
+    ['-Demit-lib-vt=true', '-Dtarget=wasm32-freestanding', '-Doptimize=ReleaseSafe'],
   )
   const artifact = join(source, 'zig-out/bin/ghostty-vt.wasm')
   if (!existsSync(artifact)) throw new Error('Ghostty did not emit a browser WASM module')

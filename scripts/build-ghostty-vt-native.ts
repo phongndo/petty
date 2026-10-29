@@ -1,7 +1,6 @@
 #!/usr/bin/env tsx
 
 /** Build the same pinned Ghostty C ABI for the daemon's host platform. */
-import { execFileSync } from 'node:child_process'
 import {
   copyFileSync,
   cpSync,
@@ -14,16 +13,13 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { GHOSTTY_REVISION, withGhosttySource } from './ghostty-source'
+import { GHOSTTY_REVISION, withGhosttySource, zigBuildGhostty } from './ghostty-source'
 
 const DAEMON_DIR = resolve(import.meta.dirname, '../apps/daemon')
 const OUTPUT_DIR = join(DAEMON_DIR, '.ghostty-vt')
 
 withGhosttySource((source) => {
-  execFileSync('zig', ['build', '-Demit-lib-vt=true', '-Doptimize=ReleaseFast'], {
-    cwd: source,
-    stdio: 'inherit',
-  })
+  zigBuildGhostty(source, ['-Demit-lib-vt=true', '-Doptimize=ReleaseFast'])
   const artifact = join(source, 'zig-out/lib/libghostty-vt.a')
   if (!existsSync(artifact)) throw new Error('Ghostty did not emit the native C ABI archive')
 
